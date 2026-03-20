@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "truck-app",
+    "name": "TruckManager",
     "slug": "truck-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -27,6 +27,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-image-picker",
       [
         "expo-splash-screen",
         {
