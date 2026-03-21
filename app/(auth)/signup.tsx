@@ -72,26 +72,29 @@ export default function SignupScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <StatusBar style="light" />
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={Colors.white} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Account</Text>
-        <Text style={styles.headerSub}>Join your fleet team</Text>
+        <View style={styles.headerBrand}>
+          <Text style={styles.headerOm}>🕉️</Text>
+          <Text style={styles.headerTitle}>Sainik + Amrit</Text>
+        </View>
+        <Text style={styles.headerSub}>Create your account</Text>
       </View>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      <ScrollView
         style={styles.cardWrapper}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
           <View style={styles.card}>
             {error ? (
               <View style={styles.errorBox}>
@@ -210,9 +213,8 @@ export default function SignupScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -256,13 +258,15 @@ const styles = StyleSheet.create({
   successTitle: { fontSize: FontSize.xxl, fontWeight: '700', color: Colors.text, marginBottom: Spacing.sm },
   successText: { fontSize: FontSize.md, color: Colors.textSecondary, textAlign: 'center', marginBottom: Spacing.lg },
   header: {
-    paddingTop: 60,
-    paddingBottom: Spacing.lg,
+    paddingTop: 52,
+    paddingBottom: Spacing.md,
     paddingHorizontal: Spacing.lg,
   },
-  backBtn: { marginBottom: Spacing.md },
-  headerTitle: { fontSize: FontSize.xxl, fontWeight: '700', color: Colors.white },
-  headerSub: { fontSize: FontSize.sm, color: 'rgba(255,255,255,0.6)', marginTop: Spacing.xs },
+  backBtn: { marginBottom: Spacing.sm },
+  headerBrand: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerOm: { fontSize: 24 },
+  headerTitle: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.white },
+  headerSub: { fontSize: FontSize.xs, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
   cardWrapper: { flex: 1 },
   scrollContent: { flexGrow: 1 },
   card: {

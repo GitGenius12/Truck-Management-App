@@ -45,28 +45,27 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <StatusBar style="light" />
 
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.logoContainer}>
-          <Ionicons name="car-sport" size={36} color={Colors.white} />
+          <Text style={styles.omSymbol}>🕉️</Text>
         </View>
-        <Text style={styles.appName}>TruckManager</Text>
-        <Text style={styles.tagline}>Fleet Operations Platform</Text>
+        <Text style={styles.appName}>Sainik + Amrit</Text>
       </View>
 
       {/* Card */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      <ScrollView
         style={styles.cardWrapper}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
           <View style={styles.card}>
             <Text style={styles.title}>Welcome back</Text>
             <Text style={styles.subtitle}>Sign in to your account</Text>
@@ -138,9 +137,8 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -150,31 +148,33 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryDark,
   },
   header: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingTop: 52,
+    paddingBottom: 16,
   },
   logoContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: Radius.lg,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  omSymbol: {
+    fontSize: 30,
   },
   appName: {
-    fontSize: FontSize.xxl,
+    fontSize: FontSize.xl,
     fontWeight: '700',
     color: Colors.white,
     letterSpacing: 0.3,
   },
   tagline: {
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     color: 'rgba(255,255,255,0.6)',
-    marginTop: Spacing.xs,
+    marginTop: 2,
   },
   cardWrapper: {
     flex: 2,
