@@ -6,10 +6,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/context/AuthContext';
 import OmLoader from '@/components/OmLoader';
 import { api } from '@/services/api';
@@ -34,6 +37,65 @@ interface Trip {
   cash?: number;
 }
 
+interface QuickAction {
+  id: string;
+  icon: string;
+  label: string;
+  color: string;
+  route: string;
+}
+
+const ALL_ACTIONS: Record<string, QuickAction[]> = {
+  DIRECTOR: [
+    { id: 'trucks',      icon: 'car',                   label: 'Trucks',      color: Colors.primaryLight, route: '/(tabs)/trucks' },
+    { id: 'drivers',     icon: 'people',                label: 'Drivers',     color: Colors.accent,       route: '/(tabs)/drivers' },
+    { id: 'trips',       icon: 'map',                   label: 'Trips',       color: Colors.teal,         route: '/(tabs)/trips' },
+    { id: 'approvals',   icon: 'checkmark-circle',      label: 'Approvals',   color: Colors.warning,      route: '/more/approvals' },
+    { id: 'average',     icon: 'trending-up',           label: 'Mileage',     color: Colors.primary,      route: '/more/average' },
+    { id: 'validity',    icon: 'shield-checkmark',      label: 'Validity',    color: Colors.orange,       route: '/more/validity' },
+    { id: 'availability',icon: 'checkmark-circle',      label: 'Avail.',      color: Colors.teal,         route: '/more/availability' },
+    { id: 'assignment',  icon: 'git-branch',            label: 'Assign',      color: Colors.accent,       route: '/more/assignment' },
+    { id: 'users',       icon: 'people-circle',         label: 'Users',       color: Colors.primaryLight, route: '/more/users' },
+    { id: 'accesses',    icon: 'lock-closed',           label: 'Accesses',    color: Colors.warning,      route: '/more/accesses' },
+    { id: 'transactions',icon: 'cash',                  label: 'Txns',        color: Colors.teal,         route: '/more/transactions' },
+    { id: 'misc',        icon: 'receipt',               label: 'Misc',        color: Colors.orange,       route: '/more/misc-spend' },
+    { id: 'bank',        icon: 'business',              label: 'Bank',        color: Colors.primary,      route: '/more/bank-entry' },
+  ],
+  MANAGER: [
+    { id: 'trucks',      icon: 'car',                   label: 'Trucks',      color: Colors.primaryLight, route: '/(tabs)/trucks' },
+    { id: 'drivers',     icon: 'people',                label: 'Drivers',     color: Colors.accent,       route: '/(tabs)/drivers' },
+    { id: 'trips',       icon: 'map',                   label: 'Trips',       color: Colors.teal,         route: '/(tabs)/trips' },
+    { id: 'add-trip',    icon: 'add-circle',            label: 'Add Trip',    color: Colors.primary,      route: '/trips/add' },
+    { id: 'add-truck',   icon: 'add-circle-outline',    label: 'Add Truck',   color: Colors.primaryLight, route: '/trucks/add' },
+    { id: 'approvals',   icon: 'checkmark-circle',      label: 'Approvals',   color: Colors.warning,      route: '/more/approvals' },
+    { id: 'average',     icon: 'trending-up',           label: 'Mileage',     color: Colors.primary,      route: '/more/average' },
+    { id: 'validity',    icon: 'shield-checkmark',      label: 'Validity',    color: Colors.orange,       route: '/more/validity' },
+    { id: 'availability',icon: 'checkmark-circle',      label: 'Avail.',      color: Colors.teal,         route: '/more/availability' },
+    { id: 'assignment',  icon: 'git-branch',            label: 'Assign',      color: Colors.accent,       route: '/more/assignment' },
+    { id: 'transactions',icon: 'cash',                  label: 'Txns',        color: Colors.teal,         route: '/more/transactions' },
+    { id: 'misc',        icon: 'receipt',               label: 'Misc',        color: Colors.orange,       route: '/more/misc-spend' },
+    { id: 'bank',        icon: 'business',              label: 'Bank',        color: Colors.primary,      route: '/more/bank-entry' },
+  ],
+  STAFF: [
+    { id: 'add-trip',    icon: 'add-circle',            label: 'Add Trip',    color: Colors.primary,      route: '/trips/add' },
+    { id: 'trucks',      icon: 'car',                   label: 'Trucks',      color: Colors.primaryLight, route: '/(tabs)/trucks' },
+    { id: 'drivers',     icon: 'people',                label: 'Drivers',     color: Colors.accent,       route: '/(tabs)/drivers' },
+    { id: 'trips',       icon: 'map',                   label: 'Trips',       color: Colors.teal,         route: '/(tabs)/trips' },
+    { id: 'add-truck',   icon: 'add-circle-outline',    label: 'Add Truck',   color: Colors.primaryLight, route: '/trucks/add' },
+    { id: 'average',     icon: 'trending-up',           label: 'Mileage',     color: Colors.primary,      route: '/more/average' },
+    { id: 'validity',    icon: 'shield-checkmark',      label: 'Validity',    color: Colors.orange,       route: '/more/validity' },
+    { id: 'transactions',icon: 'cash',                  label: 'Txns',        color: Colors.teal,         route: '/more/transactions' },
+    { id: 'misc',        icon: 'receipt',               label: 'Misc',        color: Colors.orange,       route: '/more/misc-spend' },
+    { id: 'bank',        icon: 'business',              label: 'Bank',        color: Colors.primary,      route: '/more/bank-entry' },
+  ],
+};
+
+const DEFAULT_PINNED: Record<string, string[]> = {
+  DIRECTOR: ['trucks', 'drivers', 'approvals', 'average'],
+  MANAGER:  ['trucks', 'drivers', 'approvals', 'add-trip'],
+  STAFF:    ['add-trip', 'trucks', 'drivers', 'trips'],
+};
+
 function getGreeting() {
   const h = new Date().getHours();
   if (h < 12) return 'Good Morning';
@@ -47,6 +109,31 @@ export default function DashboardScreen() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [pinned, setPinned] = useState<string[]>([]);
+  const [showEditor, setShowEditor] = useState(false);
+
+  const role = (user?.role ?? 'STAFF') as keyof typeof ALL_ACTIONS;
+  const allActions = ALL_ACTIONS[role] ?? ALL_ACTIONS.STAFF;
+  const storageKey = `quick_actions_${user?._id ?? 'guest'}`;
+
+  // Load pinned from storage
+  useEffect(() => {
+    AsyncStorage.getItem(storageKey).then(val => {
+      if (val) {
+        try { setPinned(JSON.parse(val)); } catch { setPinned(DEFAULT_PINNED[role] ?? []); }
+      } else {
+        setPinned(DEFAULT_PINNED[role] ?? []);
+      }
+    });
+  }, [storageKey, role]);
+
+  const togglePin = useCallback(async (id: string) => {
+    setPinned(prev => {
+      const next = prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id];
+      AsyncStorage.setItem(storageKey, JSON.stringify(next));
+      return next;
+    });
+  }, [storageKey]);
 
   const truckEndpoint = ENDPOINTS.TRUCKS;
   const tripEndpoint = ENDPOINTS.TRIPS;
@@ -58,12 +145,10 @@ export default function DashboardScreen() {
         api.get<any>(tripEndpoint),
       ]);
       if (trucksRes.status === 'fulfilled') {
-        // getAllTrucks returns { trucks: [...] }, getMyTrucks returns [...] directly
         const t = trucksRes.value;
         setTrucks(Array.isArray(t) ? t : (t.trucks ?? []));
       }
       if (tripsRes.status === 'fulfilled') {
-        // getAllTrips returns { trips: [...] }, getMyTrips returns [...] directly
         const t = tripsRes.value;
         setTrips(Array.isArray(t) ? t : (t.trips ?? []));
       }
@@ -84,6 +169,7 @@ export default function DashboardScreen() {
 
   const activeTrucks = trucks.filter(t => t.status === 'ACTIVE' || !t.status).length;
   const recentTrips = trips.slice(0, 5);
+  const pinnedActions = allActions.filter(a => pinned.includes(a.id));
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -117,37 +203,32 @@ export default function DashboardScreen() {
         )}
 
         {/* Quick Actions */}
-        <Text style={styles.sectionLabel}>QUICK ACTIONS</Text>
-        <View style={styles.actionsRow}>
-          {user?.role === 'STAFF' && (
-            <ActionButton
-              icon="add-circle"
-              label="Add Trip"
-              onPress={() => router.push('/trips/add')}
-              color={Colors.primary}
-            />
-          )}
-          <ActionButton
-            icon="car"
-            label="Trucks"
-            onPress={() => router.push('/(tabs)/trucks')}
-            color={Colors.primaryLight}
-          />
-          <ActionButton
-            icon="people"
-            label="Drivers"
-            onPress={() => router.push('/(tabs)/drivers')}
-            color={Colors.accent}
-          />
-          {(user?.role === 'DIRECTOR' || user?.role === 'MANAGER') && (
-            <ActionButton
-              icon="checkmark-circle"
-              label="Approvals"
-              onPress={() => router.push('/(tabs)/more')}
-              color={Colors.warning}
-            />
-          )}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionLabel}>QUICK ACTIONS</Text>
+          <TouchableOpacity onPress={() => setShowEditor(true)} style={styles.editBtn}>
+            <Ionicons name="star-outline" size={14} color={Colors.primary} />
+            <Text style={styles.editBtnText}>Customize</Text>
+          </TouchableOpacity>
         </View>
+
+        {pinnedActions.length === 0 ? (
+          <TouchableOpacity style={styles.emptyActions} onPress={() => setShowEditor(true)}>
+            <Ionicons name="star-outline" size={20} color={Colors.textMuted} />
+            <Text style={styles.emptyActionsText}>Tap Customize to pin quick actions</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.actionsRow}>
+            {pinnedActions.map(action => (
+              <ActionButton
+                key={action.id}
+                icon={action.icon}
+                label={action.label}
+                onPress={() => router.push(action.route as any)}
+                color={action.color}
+              />
+            ))}
+          </View>
+        )}
 
         {/* Recent Trips */}
         <View style={styles.sectionHeader}>
@@ -173,6 +254,46 @@ export default function DashboardScreen() {
           ))
         )}
       </ScrollView>
+
+      {/* Customize Modal */}
+      <Modal visible={showEditor} animationType="slide" transparent onRequestClose={() => setShowEditor(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowEditor(false)} />
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHandle} />
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Customize Quick Actions</Text>
+            <TouchableOpacity onPress={() => setShowEditor(false)}>
+              <Ionicons name="close" size={22} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.modalHint}>Star sections to pin them as quick actions</Text>
+          <FlatList
+            data={allActions}
+            keyExtractor={item => item.id}
+            contentContainerStyle={{ paddingBottom: 32 }}
+            renderItem={({ item }) => {
+              const isPinned = pinned.includes(item.id);
+              return (
+                <TouchableOpacity
+                  style={[styles.actionRow, isPinned && styles.actionRowPinned]}
+                  onPress={() => togglePin(item.id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.actionRowIcon, { backgroundColor: item.color + '18' }]}>
+                    <Ionicons name={item.icon as any} size={20} color={item.color} />
+                  </View>
+                  <Text style={styles.actionRowLabel}>{item.label}</Text>
+                  <Ionicons
+                    name={isPinned ? 'star' : 'star-outline'}
+                    size={20}
+                    color={isPinned ? Colors.warning : Colors.textMuted}
+                  />
+                </TouchableOpacity>
+              );
+            }}
+          />
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -187,15 +308,9 @@ function StatCard({ label, value, color }: { label: string; value: number; color
 }
 
 function ActionButton({
-  icon,
-  label,
-  onPress,
-  color,
+  icon, label, onPress, color,
 }: {
-  icon: string;
-  label: string;
-  onPress: () => void;
-  color: string;
+  icon: string; label: string; onPress: () => void; color: string;
 }) {
   return (
     <TouchableOpacity style={styles.actionBtn} onPress={onPress} activeOpacity={0.8}>
@@ -265,6 +380,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   seeAll: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: '600' },
+  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing.md, marginBottom: Spacing.sm },
+  editBtnText: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: '600' },
   statsRow: { flexDirection: 'row', gap: Spacing.sm },
   statCard: {
     flex: 1,
@@ -290,11 +407,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   actionLabel: { fontSize: FontSize.xs, color: Colors.textSecondary, textAlign: 'center', fontWeight: '500' },
-  empty: {
+  emptyActions: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.xl,
     gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
   },
+  emptyActionsText: { fontSize: FontSize.sm, color: Colors.textMuted, fontStyle: 'italic' },
+  empty: { alignItems: 'center', paddingVertical: Spacing.xl, gap: Spacing.sm },
   emptyText: { fontSize: FontSize.md, color: Colors.textMuted },
   emptyBtn: {
     backgroundColor: Colors.primary,
@@ -324,4 +445,36 @@ const styles = StyleSheet.create({
   tripRight: { alignItems: 'flex-end' },
   tripKm: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.primary },
   tripDiesel: { fontSize: FontSize.xs, color: Colors.textMuted },
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  modalSheet: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '75%',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    alignSelf: 'center',
+    marginBottom: Spacing.md,
+  },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  modalTitle: { fontSize: FontSize.lg, fontWeight: '700', color: Colors.text },
+  modalHint: { fontSize: FontSize.sm, color: Colors.textMuted, marginBottom: Spacing.md },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    gap: Spacing.md,
+  },
+  actionRowPinned: { backgroundColor: Colors.inputBg, marginHorizontal: -Spacing.lg, paddingHorizontal: Spacing.lg },
+  actionRowIcon: { width: 36, height: 36, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
+  actionRowLabel: { flex: 1, fontSize: FontSize.md, color: Colors.text, fontWeight: '500' },
 });
