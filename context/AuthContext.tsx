@@ -8,6 +8,7 @@ export type UserStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface User {
   id: string;
+  _id?: string;
   name: string;
   email: string;
   phone?: string;
@@ -16,6 +17,7 @@ export interface User {
   isProfileComplete: boolean;
   profilePhoto?: string;
   favourites?: string[];
+  tabAccess?: string[]; // effectiveTabIds from /users/me/tab-access
 }
 
 interface AuthState {
@@ -52,6 +54,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loadStoredAuth();
   }, []);
 
+  async function fetchAndMergeTabAccess(user: User, token: string): Promise<User> {
+    // Directors bypass tab access — they see everything
+    if (user.role === 'DIRECTOR') return user;
+    try {
+      const raw = await api.get<any>(ENDPOINTS.MY_TAB_ACCESS);
+      const effectiveTabIds: string[] = Array.isArray(raw.effectiveTabIds) ? raw.effectiveTabIds : [];
+      return { ...user, tabAccess: effectiveTabIds };
+    } catch {
+      return user;
+    }
+  }
+
   async function loadStoredAuth() {
     try {
       const [token, userJson] = await Promise.all([
@@ -59,7 +73,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.getItem('auth_user'),
       ]);
       if (token && userJson) {
-        setState({ user: JSON.parse(userJson), token, isLoading: false });
+        const storedUser: User = JSON.parse(userJson);
+        // Refresh tab access in background so restrictions are always up-to-date
+        const userWithAccess = await fetchAndMergeTabAccess(storedUser, token);
+        await AsyncStorage.setItem('auth_user', JSON.stringify(userWithAccess));
+        setState({ user: userWithAccess, token, isLoading: false });
       } else {
         setState(s => ({ ...s, isLoading: false }));
       }
@@ -73,11 +91,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ENDPOINTS.LOGIN,
       { email, password }
     );
+    const userWithAccess = await fetchAndMergeTabAccess(res.user, res.token);
     await AsyncStorage.multiSet([
       ['auth_token', res.token],
-      ['auth_user', JSON.stringify(res.user)],
+      ['auth_user', JSON.stringify(userWithAccess)],
     ]);
-    setState({ user: res.user, token: res.token, isLoading: false });
+    setState({ user: userWithAccess, token: res.token, isLoading: false });
   }
 
   async function signup(data: SignupData) {

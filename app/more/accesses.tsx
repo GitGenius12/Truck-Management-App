@@ -10,18 +10,26 @@ import { api } from '@/services/api';
 import { ENDPOINTS } from '@/constants/api';
 import { Colors, Spacing, Radius, FontSize } from '@/constants/theme';
 
+interface UserAccess {
+  overrideEnabled: boolean;
+  effectiveTabIds: string[];
+  customTabIds: string[];
+  roleDefaultTabIds: string[];
+}
+
 interface User {
   _id: string;
   name: string;
   email: string;
   role: string;
-  tabAccess?: string[];
+  access?: UserAccess;
 }
 
-const ALL_TABS = [
-  'average', 'my-trucks', 'validity', 'daily-ops', 'availability',
-  'assignment', 'drivers', 'transactions', 'misc', 'bank-entry', 'trips', 'requests',
-];
+// Must match backend ROLE_TAB_IDS in constants/tabAccess.js
+const ROLE_TABS: Record<string, string[]> = {
+  STAFF:   ['average', 'my-trucks', 'trucks', 'daily-ops', 'add', 'trips', 'misc', 'transactions', 'drivers', 'bank-entry'],
+  MANAGER: ['requests', 'average', 'my-trucks', 'add', 'trips', 'misc', 'trucks', 'drivers', 'availability', 'assignments', 'transactions', 'bank-entry'],
+};
 
 export default function AccessesScreen() {
   const [users, setUsers] = useState<User[]>([]);
@@ -36,14 +44,20 @@ export default function AccessesScreen() {
       const list: User[] = (Array.isArray(data) ? data : (data.users ?? [])).filter(
         (u: User) => u.role !== 'DIRECTOR'
       );
-      // Load tab access for each user
       const withAccess = await Promise.all(list.map(async u => {
         try {
           const raw = await api.get<any>(`${ENDPOINTS.USERS}/${u._id}/tab-access`);
-          const resolved = raw?.tabAccess ?? raw;
-          return { ...u, tabAccess: Array.isArray(resolved) ? resolved : [] };
+          return {
+            ...u,
+            access: {
+              overrideEnabled:  Boolean(raw.overrideEnabled),
+              effectiveTabIds:  Array.isArray(raw.effectiveTabIds) ? raw.effectiveTabIds : [],
+              customTabIds:     Array.isArray(raw.customTabIds)    ? raw.customTabIds    : [],
+              roleDefaultTabIds:Array.isArray(raw.roleDefaultTabIds)? raw.roleDefaultTabIds: [],
+            } as UserAccess,
+          };
         } catch {
-          return { ...u, tabAccess: [] };
+          return { ...u, access: { overrideEnabled: false, effectiveTabIds: [], customTabIds: [], roleDefaultTabIds: [] } };
         }
       }));
       setUsers(withAccess);
@@ -53,16 +67,27 @@ export default function AccessesScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function toggleTab(userId: string, tab: string, currentAccess: string[]) {
-    const newAccess = currentAccess.includes(tab)
-      ? currentAccess.filter(t => t !== tab)
-      : [...currentAccess, tab];
+  async function toggleTab(userId: string, tab: string, currentAccess: UserAccess) {
+    const currentTabs = currentAccess.effectiveTabIds;
+    const newTabs = currentTabs.includes(tab)
+      ? currentTabs.filter(t => t !== tab)
+      : [...currentTabs, tab];
 
+    const newAccess: UserAccess = {
+      ...currentAccess,
+      overrideEnabled: true,
+      effectiveTabIds: newTabs,
+      customTabIds: newTabs,
+    };
+
+    // Optimistic update
+    setUsers(prev => prev.map(u => u._id === userId ? { ...u, access: newAccess } : u));
     setSaving(userId + tab);
     try {
-      await api.put(`${ENDPOINTS.USERS}/${userId}/tab-access`, { tabAccess: newAccess });
-      setUsers(prev => prev.map(u => u._id === userId ? { ...u, tabAccess: newAccess } : u));
+      await api.put(`${ENDPOINTS.USERS}/${userId}/tab-access`, { enabled: true, tabs: newTabs });
     } catch (e: any) {
+      // Revert on failure
+      setUsers(prev => prev.map(u => u._id === userId ? { ...u, access: currentAccess } : u));
       Alert.alert('Error', e.message || 'Failed to update access');
     } finally {
       setSaving(null);
@@ -87,7 +112,8 @@ export default function AccessesScreen() {
           }
           renderItem={({ item }) => {
             const isOpen = expanded === item._id;
-            const access = Array.isArray(item.tabAccess) ? item.tabAccess : [];
+            const access = item.access ?? { overrideEnabled: false, effectiveTabIds: [], customTabIds: [], roleDefaultTabIds: [] };
+            const tabs = ROLE_TABS[item.role] ?? [];
             return (
               <View style={styles.card}>
                 <View style={styles.userRow}>
@@ -96,7 +122,11 @@ export default function AccessesScreen() {
                   </View>
                   <View style={styles.userInfo}>
                     <Text style={styles.name}>{item.name}</Text>
-                    <Text style={styles.sub}>{item.role} · {access.length} tabs</Text>
+                    <Text style={styles.email}>{item.email}</Text>
+                    <Text style={styles.sub}>
+                      {item.role} · {access.effectiveTabIds.length} tabs
+                      {access.overrideEnabled ? ' · custom' : ' · default'}
+                    </Text>
                   </View>
                   <Ionicons
                     name={isOpen ? 'chevron-up' : 'chevron-down'}
@@ -107,18 +137,22 @@ export default function AccessesScreen() {
                 </View>
                 {isOpen && (
                   <View style={styles.tabsGrid}>
-                    {ALL_TABS.map(tab => (
-                      <View key={tab} style={styles.tabRow}>
-                        <Text style={styles.tabLabel}>{tab}</Text>
-                        <Switch
-                          value={access.includes(tab)}
-                          onValueChange={() => toggleTab(item._id, tab, access)}
-                          disabled={saving === item._id + tab}
-                          trackColor={{ false: Colors.border, true: Colors.primary + '80' }}
-                          thumbColor={access.includes(tab) ? Colors.primary : Colors.textMuted}
-                        />
-                      </View>
-                    ))}
+                    {tabs.map(tab => {
+                      const isEnabled = access.effectiveTabIds.includes(tab);
+                      const isSaving = saving === item._id + tab;
+                      return (
+                        <View key={tab} style={styles.tabRow}>
+                          <Text style={styles.tabLabel}>{tab}</Text>
+                          <Switch
+                            value={isEnabled}
+                            onValueChange={() => toggleTab(item._id, tab, access)}
+                            disabled={isSaving}
+                            trackColor={{ false: Colors.border, true: Colors.primary + '80' }}
+                            thumbColor={isEnabled ? Colors.primary : Colors.textMuted}
+                          />
+                        </View>
+                      );
+                    })}
                   </View>
                 )}
               </View>
@@ -145,7 +179,8 @@ const styles = StyleSheet.create({
   avatarText: { color: Colors.white, fontSize: FontSize.lg, fontWeight: '700' },
   userInfo: { flex: 1 },
   name: { fontSize: FontSize.md, fontWeight: '600', color: Colors.text },
-  sub: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
+  email: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 1 },
+  sub: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
   tabsGrid: { borderTopWidth: 1, borderTopColor: Colors.border, paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm },
   tabRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

@@ -15,6 +15,7 @@ interface MenuItem {
   route?: string;
   onPress?: () => void;
   danger?: boolean;
+  tabId?: string; // backend tab access ID — if set, hidden when user lacks access
 }
 
 export default function MoreScreen() {
@@ -71,39 +72,39 @@ export default function MoreScreen() {
     {
       title: 'Analytics',
       items: [
-        { icon: 'trending-up-outline', label: 'Average / Mileage', subtitle: 'Trip mileage per truck', route: '/more/average' },
+        { icon: 'trending-up-outline', label: 'Average / Mileage', subtitle: 'Trip mileage per truck', route: '/more/average', tabId: 'average' },
       ],
     },
     {
       title: 'Fleet',
       items: [
-        { icon: 'car-outline', label: 'My Trucks', subtitle: 'View all trucks', route: '/(tabs)/trucks' },
-        { icon: 'add-circle-outline', label: 'Add Truck', subtitle: 'Register new truck', route: '/trucks/add' },
-        { icon: 'shield-checkmark-outline', label: 'Validity', subtitle: 'Document expiry tracker', route: '/more/validity' },
-        { icon: 'checkmark-circle-outline', label: 'Availability', subtitle: 'Truck availability board', route: '/more/availability' },
-        { icon: 'git-branch-outline', label: 'Assignments', subtitle: 'Driver-truck assignments', route: '/more/assignment' },
+        { icon: 'car-outline', label: 'My Trucks', subtitle: 'View all trucks', route: '/(tabs)/trucks', tabId: 'my-trucks' },
+        { icon: 'add-circle-outline', label: 'Add Truck', subtitle: 'Register new truck', route: '/trucks/add', tabId: 'add' },
+        { icon: 'shield-checkmark-outline', label: 'Validity', subtitle: 'Document expiry tracker', route: '/more/validity', tabId: 'trucks' },
+        { icon: 'checkmark-circle-outline', label: 'Availability', subtitle: 'Truck availability board', route: '/more/availability', tabId: 'availability' },
+        { icon: 'git-branch-outline', label: 'Assignments', subtitle: 'Driver-truck assignments', route: '/more/assignment', tabId: 'assignments' },
       ],
     },
     {
       title: 'Trips',
       items: [
-        { icon: 'add-circle-outline', label: 'Add Trip Entry', subtitle: 'Log a new trip', route: '/trips/add' },
-        { icon: 'map-outline', label: 'All Trips', subtitle: 'View trip history', route: '/(tabs)/trips' },
+        { icon: 'add-circle-outline', label: 'Add Trip Entry', subtitle: 'Log a new trip', route: '/trips/add', tabId: 'trips' },
+        { icon: 'map-outline', label: 'All Trips', subtitle: 'View trip history', route: '/(tabs)/trips', tabId: 'trips' },
       ],
     },
     {
       title: 'People',
       items: [
-        { icon: 'people-outline', label: 'Drivers', subtitle: 'Driver management', route: '/(tabs)/drivers' },
-        { icon: 'newspaper-outline', label: 'Staff Approvals', subtitle: 'Review pending requests', route: '/more/approvals' },
+        { icon: 'people-outline', label: 'Drivers', subtitle: 'Driver management', route: '/(tabs)/drivers', tabId: 'drivers' },
+        { icon: 'newspaper-outline', label: 'Staff Approvals', subtitle: 'Review pending requests', route: '/more/approvals', tabId: 'requests' },
       ],
     },
     {
       title: 'Finance',
       items: [
-        { icon: 'cash-outline', label: 'Transactions', subtitle: 'Driver salary & payments', route: '/more/transactions' },
-        { icon: 'receipt-outline', label: 'Miscellaneous', subtitle: 'Misc expenses', route: '/more/misc-spend' },
-        { icon: 'business-outline', label: 'Bank Entry', subtitle: 'Net banking log', route: '/more/bank-entry' },
+        { icon: 'cash-outline', label: 'Transactions', subtitle: 'Driver salary & payments', route: '/more/transactions', tabId: 'transactions' },
+        { icon: 'receipt-outline', label: 'Miscellaneous', subtitle: 'Misc expenses', route: '/more/misc-spend', tabId: 'misc' },
+        { icon: 'business-outline', label: 'Bank Entry', subtitle: 'Net banking log', route: '/more/bank-entry', tabId: 'bank-entry' },
       ],
     },
   ];
@@ -113,39 +114,51 @@ export default function MoreScreen() {
     {
       title: 'Analytics',
       items: [
-        { icon: 'trending-up-outline', label: 'Average / Mileage', subtitle: 'Trip mileage per truck', route: '/more/average' },
+        { icon: 'trending-up-outline', label: 'Average / Mileage', subtitle: 'Trip mileage per truck', route: '/more/average', tabId: 'average' },
       ],
     },
     {
       title: 'Fleet',
       items: [
-        { icon: 'car-outline', label: 'All Trucks', subtitle: 'View assigned trucks', route: '/(tabs)/trucks' },
-        { icon: 'shield-checkmark-outline', label: 'Validity', subtitle: 'Document expiry tracker', route: '/more/validity' },
-        { icon: 'map-outline', label: 'Daily Ops', subtitle: 'Trip entries', route: '/(tabs)/trips' },
-        { icon: 'add-circle-outline', label: 'Add Truck Details', subtitle: 'Register new truck', route: '/trucks/add' },
-        { icon: 'add-circle-outline', label: 'Add Trip Entry', subtitle: 'Log a new trip', route: '/trips/add' },
+        { icon: 'car-outline', label: 'All Trucks', subtitle: 'View assigned trucks', route: '/(tabs)/trucks', tabId: 'my-trucks' },
+        { icon: 'shield-checkmark-outline', label: 'Validity', subtitle: 'Document expiry tracker', route: '/more/validity', tabId: 'trucks' },
+        { icon: 'map-outline', label: 'Daily Ops', subtitle: 'Trip entries', route: '/(tabs)/trips', tabId: 'daily-ops' },
+        { icon: 'add-circle-outline', label: 'Add Truck Details', subtitle: 'Register new truck', route: '/trucks/add', tabId: 'add' },
+        { icon: 'add-circle-outline', label: 'Add Trip Entry', subtitle: 'Log a new trip', route: '/trips/add', tabId: 'trips' },
       ],
     },
     {
       title: 'People',
       items: [
-        { icon: 'people-outline', label: 'Drivers', subtitle: 'Driver management', route: '/(tabs)/drivers' },
+        { icon: 'people-outline', label: 'Drivers', subtitle: 'Driver management', route: '/(tabs)/drivers', tabId: 'drivers' },
       ],
     },
     {
       title: 'Finance',
       items: [
-        { icon: 'cash-outline', label: 'Transactions', subtitle: 'Driver salary & payments', route: '/more/transactions' },
-        { icon: 'receipt-outline', label: 'Miscellaneous', subtitle: 'Misc expenses', route: '/more/misc-spend' },
-        { icon: 'business-outline', label: 'Bank Entry', subtitle: 'Net banking log', route: '/more/bank-entry' },
+        { icon: 'cash-outline', label: 'Transactions', subtitle: 'Driver salary & payments', route: '/more/transactions', tabId: 'transactions' },
+        { icon: 'receipt-outline', label: 'Miscellaneous', subtitle: 'Misc expenses', route: '/more/misc-spend', tabId: 'misc' },
+        { icon: 'business-outline', label: 'Bank Entry', subtitle: 'Net banking log', route: '/more/bank-entry', tabId: 'bank-entry' },
       ],
     },
   ];
 
-  const menuGroups =
+  const rawGroups =
     role === 'DIRECTOR' ? directorGroups :
     role === 'MANAGER' ? managerGroups :
     staffGroups;
+
+  // Directors see everything; STAFF/MANAGER are filtered by their effectiveTabIds
+  const menuGroups = role === 'DIRECTOR'
+    ? rawGroups
+    : rawGroups
+        .map(group => ({
+          ...group,
+          items: group.items.filter(item =>
+            !item.tabId || (user?.tabAccess ?? []).includes(item.tabId)
+          ),
+        }))
+        .filter(group => group.items.length > 0);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
