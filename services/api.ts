@@ -59,4 +59,6 @@ export const api = {
     request<T>(path, { method: 'POST', body: formData }, true),
 
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  deleteWithBody: <T>(path: string, body: object) =>
+    request<T>(path, { method: 'DELETE', body: JSON.stringify(body) }),
 };

@@ -2,8 +2,8 @@
 // If you switch networks (e.g. different WiFi), update this IP.
 const LOCAL_IP = '192.168.1.43';
 
-// export const API_BASE_URL = `http://${LOCAL_IP}:8002/api`;
-export const API_BASE_URL = `https://truck-management-backend-virginia.onrender.com/api`;
+export const API_BASE_URL = `http://${LOCAL_IP}:8002/api`;
+// export const API_BASE_URL = `https://truck-management-backend-virginia.onrender.com/api`;
 
 export const ENDPOINTS = {
   // Auth
@@ -38,6 +38,9 @@ export const ENDPOINTS = {
 
   // Bank Entries
   BANK_ENTRIES: '/bank-entries',
+
+  // Firm
+  FIRM_TAB_PERMISSIONS: '/firm/tab-permissions',
 
   // Daily Ops
   DAILY_OPS_AVAILABILITY: '/daily-ops/availability',

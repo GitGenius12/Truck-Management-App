@@ -123,6 +123,8 @@ export default function MoreScreen() {
         { icon: 'car-outline', label: 'All Trucks', subtitle: 'View assigned trucks', route: '/(tabs)/trucks', tabId: 'my-trucks' },
         { icon: 'shield-checkmark-outline', label: 'Validity', subtitle: 'Document expiry tracker', route: '/more/validity', tabId: 'trucks' },
         { icon: 'map-outline', label: 'Daily Ops', subtitle: 'Trip entries', route: '/(tabs)/trips', tabId: 'daily-ops' },
+        { icon: 'checkmark-circle-outline', label: 'Availability', subtitle: 'Truck availability board', route: '/more/availability', tabId: 'availability' },
+        { icon: 'git-branch-outline', label: 'Assignment', subtitle: 'Driver-truck assignments', route: '/more/assignment', tabId: 'assignments' },
         { icon: 'add-circle-outline', label: 'Add Truck Details', subtitle: 'Register new truck', route: '/trucks/add', tabId: 'add' },
         { icon: 'add-circle-outline', label: 'Add Trip Entry', subtitle: 'Log a new trip', route: '/trips/add', tabId: 'trips' },
       ],

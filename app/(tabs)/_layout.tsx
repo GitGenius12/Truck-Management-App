@@ -62,6 +62,22 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="availability"
+        options={{
+          title: 'Avail.',
+          tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-circle" size={size} color={color} />,
+          href: hrefOrNull(user?.role === 'MANAGER' && canSee('availability')),
+        }}
+      />
+      <Tabs.Screen
+        name="assignment"
+        options={{
+          title: 'Assign',
+          tabBarIcon: ({ color, size }) => <Ionicons name="git-branch" size={size} color={color} />,
+          href: hrefOrNull(user?.role === 'MANAGER' && canSee('assignments')),
+        }}
+      />
+      <Tabs.Screen
         name="more"
         options={{
           title: 'More',
