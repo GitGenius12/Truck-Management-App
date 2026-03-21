@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl,
+  View, Text, FlatList, StyleSheet, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import OmLoader from '@/components/OmLoader';
 import { api } from '@/services/api';
 import { ENDPOINTS } from '@/constants/api';
 import { Colors, Spacing, Radius, FontSize } from '@/constants/theme';
@@ -49,7 +50,7 @@ export default function MiscSpendScreen() {
         </View>
       )}
       {loading ? (
-        <ActivityIndicator color={Colors.primary} style={{ marginTop: 40 }} />
+        <OmLoader />
       ) : (
         <FlatList
           data={items}

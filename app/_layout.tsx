@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
+import OmLoader from '@/components/OmLoader';
 import { Stack, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
@@ -60,7 +61,7 @@ function RootNavigation() {
   if (isLoading) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primaryDark }}>
-        <ActivityIndicator color={Colors.white} size="large" />
+        <OmLoader fullScreen />
       </View>
     );
   }

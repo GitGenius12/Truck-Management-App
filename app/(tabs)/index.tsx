@@ -5,13 +5,13 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
+import OmLoader from '@/components/OmLoader';
 import { api } from '@/services/api';
 import { ENDPOINTS } from '@/constants/api';
 import { Colors, Spacing, Radius, FontSize } from '@/constants/theme';
@@ -107,7 +107,7 @@ export default function DashboardScreen() {
         {/* Today's Snapshot */}
         <Text style={styles.sectionLabel}>TODAY'S SNAPSHOT</Text>
         {loading ? (
-          <ActivityIndicator color={Colors.primary} style={{ marginVertical: Spacing.lg }} />
+          <OmLoader size="sm" text="" />
         ) : (
           <View style={styles.statsRow}>
             <StatCard label="Trucks" value={trucks.length} color={Colors.primary} />
@@ -158,7 +158,7 @@ export default function DashboardScreen() {
         </View>
 
         {loading ? (
-          <ActivityIndicator color={Colors.primary} />
+          <OmLoader size="sm" text="" />
         ) : recentTrips.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="map-outline" size={40} color={Colors.textMuted} />

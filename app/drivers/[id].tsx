@@ -4,12 +4,12 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  ActivityIndicator,
   Image,
   TouchableOpacity,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import OmLoader from '@/components/OmLoader';
 import { api } from '@/services/api';
 import { ENDPOINTS } from '@/constants/api';
 import { Colors, Spacing, Radius, FontSize } from '@/constants/theme';
@@ -63,7 +63,7 @@ export default function DriverDetailScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={Colors.primary} size="large" />
+        <OmLoader fullScreen />
       </View>
     );
   }
