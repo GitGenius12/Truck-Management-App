@@ -5,6 +5,8 @@ import { Stack, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { Colors } from '@/constants/theme';
+import { OneSignal } from 'react-native-onesignal';
+import { ONESIGNAL_APP_ID } from '@/constants/config';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -135,6 +137,42 @@ function RootNavigation() {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    OneSignal.initialize(ONESIGNAL_APP_ID);
+    OneSignal.Notifications.requestPermission(true);
+
+    const handleNotificationClick = (event: any) => {
+      const data = event?.notification?.additionalData as Record<string, string> | undefined;
+      if (!data?.type) return;
+
+      switch (data.type) {
+        case 'approval_request':
+        case 'approved':
+        case 'rejected':
+          router.push('/more/approvals');
+          break;
+        case 'assignment_created':
+        case 'assignment_removed':
+          router.push('/more/assignment');
+          break;
+        case 'trip_created':
+        case 'trip_updated':
+          router.push('/(tabs)/daily-ops' as any);
+          break;
+        case 'bank_entry':
+        case 'bank_entry_updated':
+          router.push('/more/bank-entry');
+          break;
+        case 'doc_expiry':
+          router.push('/more/validity');
+          break;
+      }
+    };
+
+    OneSignal.Notifications.addEventListener('click', handleNotificationClick);
+    return () => OneSignal.Notifications.removeEventListener('click', handleNotificationClick);
+  }, []);
+
   return (
     <AuthProvider>
       <RootNavigation />

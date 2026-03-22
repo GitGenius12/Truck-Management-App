@@ -12,8 +12,8 @@ import { Colors, Spacing, Radius, FontSize } from '@/constants/theme';
 
 interface Approval {
   _id: string;
-  userId: { _id: string; name: string; email: string; role: string };
-  type: string;
+  requestedBy: { _id: string; name: string; email: string; role: string };
+  requestType: string;
   status: string;
   createdAt: string;
 }
@@ -66,13 +66,13 @@ export default function ApprovalsScreen() {
           renderItem={({ item }) => (
             <View style={styles.card}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{item.userId?.name?.charAt(0)?.toUpperCase() ?? '?'}</Text>
+                <Text style={styles.avatarText}>{item.requestedBy?.name?.charAt(0)?.toUpperCase() ?? '?'}</Text>
               </View>
               <View style={styles.info}>
-                <Text style={styles.name}>{item.userId?.name ?? 'Unknown'}</Text>
-                <Text style={styles.sub}>{item.userId?.email}</Text>
+                <Text style={styles.name}>{item.requestedBy?.name ?? 'Unknown'}</Text>
+                <Text style={styles.sub}>{item.requestedBy?.email}</Text>
                 <View style={styles.roleBadge}>
-                  <Text style={styles.roleText}>{item.userId?.role}</Text>
+                  <Text style={styles.roleText}>{item.requestedBy?.role}</Text>
                 </View>
               </View>
               <View style={styles.actions}>

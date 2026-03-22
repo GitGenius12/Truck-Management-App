@@ -9,7 +9,8 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.margesh.sainikamrit"
     },
     "android": {
       "package": "com.margesh.sainikamrit",
@@ -42,6 +43,14 @@
           "dark": {
             "backgroundColor": "#000000"
           }
+        }
+      ],
+      [
+        "onesignal-expo-plugin",
+        {
+          "mode": "development",
+          "smallIcons": ["./assets/images/notification-icon.png"],
+          "largeIcons": ["./assets/images/notification-icon-large.png"]
         }
       ]
     ],

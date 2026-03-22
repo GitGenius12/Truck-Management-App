@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { OneSignal } from 'react-native-onesignal';
 import { api } from '@/services/api';
 import { ENDPOINTS } from '@/constants/api';
 
@@ -78,6 +79,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const userWithAccess = await fetchAndMergeTabAccess(storedUser, token);
         await AsyncStorage.setItem('auth_user', JSON.stringify(userWithAccess));
         setState({ user: userWithAccess, token, isLoading: false });
+        OneSignal.login(userWithAccess._id ?? userWithAccess.id);
+        OneSignal.User.addTag('role', userWithAccess.role);
       } else {
         setState(s => ({ ...s, isLoading: false }));
       }
@@ -97,6 +100,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ['auth_user', JSON.stringify(userWithAccess)],
     ]);
     setState({ user: userWithAccess, token: res.token, isLoading: false });
+    OneSignal.login(userWithAccess._id ?? userWithAccess.id);
+    OneSignal.User.addTag('role', userWithAccess.role);
   }
 
   async function signup(data: SignupData) {
@@ -105,6 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function logout() {
     await AsyncStorage.multiRemove(['auth_token', 'auth_user']);
+    OneSignal.logout();
     setState({ user: null, token: null, isLoading: false });
   }
 
