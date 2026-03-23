@@ -182,11 +182,20 @@ export default function DashboardScreen() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Pre-fetch notification count for badge
+  // Pre-fetch notification count for badge — only show if there are NEW notifications
   useEffect(() => {
-    api.get<NotifResponse>(`${ENDPOINTS.NOTIFICATIONS}?page=1&limit=1`)
-      .then(res => setNotifTotal(res.total ?? 0))
-      .catch(() => {});
+    (async () => {
+      try {
+        const [res, lastSeen] = await Promise.all([
+          api.get<NotifResponse>(`${ENDPOINTS.NOTIFICATIONS}?page=1&limit=1`),
+          AsyncStorage.getItem('notif_last_seen_total'),
+        ]);
+        const serverTotal = res.total ?? 0;
+        const lastSeenTotal = parseInt(lastSeen ?? '0', 10);
+        const newCount = Math.max(0, serverTotal - lastSeenTotal);
+        setNotifTotal(newCount);
+      } catch {}
+    })();
   }, []);
 
   const onRefresh = useCallback(() => {
@@ -199,7 +208,6 @@ export default function DashboardScreen() {
     try {
       const res = await api.get<NotifResponse>(`${ENDPOINTS.NOTIFICATIONS}?page=${page}&limit=10`);
       setNotifications(res.data ?? []);
-      setNotifTotal(res.total ?? 0);
       setNotifTotalPages(res.totalPages ?? 1);
       setNotifPage(page);
     } catch {
@@ -209,9 +217,14 @@ export default function DashboardScreen() {
     }
   }, []);
 
-  const closeNotifs = useCallback(() => {
+  const closeNotifs = useCallback(async () => {
     setShowNotifs(false);
     setNotifTotal(0);
+    // Save current server total so badge only shows NEW notifications next time
+    try {
+      const res = await api.get<NotifResponse>(`${ENDPOINTS.NOTIFICATIONS}?page=1&limit=1`);
+      await AsyncStorage.setItem('notif_last_seen_total', String(res.total ?? 0));
+    } catch {}
   }, []);
 
   const activeTrucks = trucks.filter(t => t.status === 'ACTIVE' || !t.status).length;
