@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import OmLoader from '@/components/OmLoader';
+import { ListSkeleton } from '@/components/Skeleton';
 import { api } from '@/services/api';
 import { ENDPOINTS } from '@/constants/api';
 import { Colors, Spacing, Radius, FontSize } from '@/constants/theme';
@@ -221,7 +221,7 @@ export default function AccessesScreen() {
   const currentRoleTabs  = ROLE_TABS[activeDefaultRole];
   const visibleCount = currentAllowlist.length === 0 ? currentRoleTabs.length : currentAllowlist.length;
 
-  if (loading) return <SafeAreaView style={styles.safe} edges={['bottom']}><OmLoader /></SafeAreaView>;
+  if (loading) return <SafeAreaView style={styles.safe} edges={['bottom']}><ListSkeleton count={4} lines={2} /></SafeAreaView>;
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>

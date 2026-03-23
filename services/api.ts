@@ -1,6 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '@/constants/api';
 
+let _onSessionExpired: (() => void) | null = null;
+
+export function setSessionExpiredHandler(handler: () => void) {
+  _onSessionExpired = handler;
+}
+
 async function getToken(): Promise<string | null> {
   return AsyncStorage.getItem('auth_token');
 }
@@ -36,6 +42,11 @@ async function request<T>(
   }
 
   console.log(`[API] ${res.status} ${url}`, data);
+
+  if (res.status === 401 || res.status === 403) {
+    if (_onSessionExpired) _onSessionExpired();
+    throw new Error('Session expired');
+  }
 
   if (!res.ok) {
     throw new Error(data.message || `Request failed (${res.status})`);

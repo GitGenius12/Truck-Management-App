@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/context/AuthContext';
-import OmLoader from '@/components/OmLoader';
+import { StatRowSkeleton, CardSkeleton, Skeleton } from '@/components/Skeleton';
 import { api } from '@/services/api';
 import { ENDPOINTS } from '@/constants/api';
 import { Colors, Spacing, Radius, FontSize } from '@/constants/theme';
@@ -209,6 +209,11 @@ export default function DashboardScreen() {
     }
   }, []);
 
+  const closeNotifs = useCallback(() => {
+    setShowNotifs(false);
+    setNotifTotal(0);
+  }, []);
+
   const activeTrucks = trucks.filter(t => t.status === 'ACTIVE' || !t.status).length;
   const recentTrips = trips.slice(0, 5);
   const pinnedActions = allActions.filter(a => pinned.includes(a.id));
@@ -240,7 +245,7 @@ export default function DashboardScreen() {
         {/* Today's Snapshot */}
         <Text style={styles.sectionLabel}>TODAY'S SNAPSHOT</Text>
         {loading ? (
-          <OmLoader size="sm" text="" />
+          <StatRowSkeleton />
         ) : (
           <View style={styles.statsRow}>
             <StatCard label="Trucks" value={trucks.length} color={Colors.primary} />
@@ -286,7 +291,11 @@ export default function DashboardScreen() {
         </View>
 
         {loading ? (
-          <OmLoader size="sm" text="" />
+          <>
+            <CardSkeleton lines={1} />
+            <CardSkeleton lines={1} />
+            <CardSkeleton lines={1} />
+          </>
         ) : recentTrips.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="map-outline" size={40} color={Colors.textMuted} />
@@ -303,18 +312,25 @@ export default function DashboardScreen() {
       </ScrollView>
 
       {/* Notifications Modal */}
-      <Modal visible={showNotifs} animationType="slide" transparent onRequestClose={() => setShowNotifs(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowNotifs(false)} />
+      <Modal visible={showNotifs} animationType="slide" transparent onRequestClose={closeNotifs}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={closeNotifs} />
         <View style={styles.modalSheet}>
           <View style={styles.modalHandle} />
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Notifications</Text>
-            <TouchableOpacity onPress={() => setShowNotifs(false)}>
+            <TouchableOpacity onPress={closeNotifs}>
               <Ionicons name="close" size={22} color={Colors.text} />
             </TouchableOpacity>
           </View>
           {notifLoading ? (
-            <OmLoader size="sm" text="" />
+            <>
+              <Skeleton width="70%" height={14} style={{ marginBottom: 12 }} />
+              <Skeleton width="90%" height={12} style={{ marginBottom: 16 }} />
+              <Skeleton width="70%" height={14} style={{ marginBottom: 12 }} />
+              <Skeleton width="90%" height={12} style={{ marginBottom: 16 }} />
+              <Skeleton width="70%" height={14} style={{ marginBottom: 12 }} />
+              <Skeleton width="90%" height={12} />
+            </>
           ) : notifications.length === 0 ? (
             <View style={styles.notifEmpty}>
               <Ionicons name="notifications-off-outline" size={40} color={Colors.textMuted} />

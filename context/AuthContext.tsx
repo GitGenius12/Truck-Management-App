@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { OneSignal } from 'react-native-onesignal';
-import { api } from '@/services/api';
+import { api, setSessionExpiredHandler } from '@/services/api';
 import { ENDPOINTS } from '@/constants/api';
 
 export type UserRole = 'STAFF' | 'MANAGER' | 'DIRECTOR';
@@ -53,6 +53,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     loadStoredAuth();
+  }, []);
+
+  // Auto-logout on 401/403 from backend
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      AsyncStorage.multiRemove(['auth_token', 'auth_user']);
+      OneSignal.logout();
+      setState({ user: null, token: null, isLoading: false });
+    });
   }, []);
 
   async function fetchAndMergeTabAccess(user: User, token: string): Promise<User> {

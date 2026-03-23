@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
-import { View } from 'react-native';
-import OmLoader from '@/components/OmLoader';
+import { View, Text, StyleSheet } from 'react-native';
 import { Stack, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
@@ -62,8 +61,11 @@ function RootNavigation() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primaryDark }}>
-        <OmLoader fullScreen />
+      <View style={splashStyles.container}>
+        <View style={splashStyles.iconBox}>
+          <Text style={splashStyles.om}>ॐ</Text>
+        </View>
+        <Text style={splashStyles.appName}>Sainik + Amrit</Text>
       </View>
     );
   }
@@ -180,3 +182,32 @@ export default function RootLayout() {
     </AuthProvider>
   );
 }
+
+const splashStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0D3B38',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  om: {
+    fontSize: 36,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  appName: {
+    marginTop: 12,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+});

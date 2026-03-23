@@ -238,7 +238,7 @@ export default function MoreScreen() {
           </View>
         </View>
 
-        <Text style={styles.version}>TruckManager v1.0.0</Text>
+        <Text style={styles.version}>Sainik + Amrit</Text>
       </ScrollView>
     </SafeAreaView>
   );

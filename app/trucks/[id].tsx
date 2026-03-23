@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import OmLoader from '@/components/OmLoader';
+import { DetailSkeleton } from '@/components/Skeleton';
 import { api } from '@/services/api';
 import { ENDPOINTS } from '@/constants/api';
 import { Colors, Spacing, Radius, FontSize } from '@/constants/theme';
@@ -98,7 +98,7 @@ export default function TruckDetailScreen() {
   useEffect(() => { load(); }, [load]);
 
   if (loading) {
-    return <OmLoader fullScreen />;
+    return <DetailSkeleton />;
   }
 
   if (error || !truck) {
