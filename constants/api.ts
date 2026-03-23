@@ -46,4 +46,7 @@ export const ENDPOINTS = {
   DAILY_OPS_AVAILABILITY: '/daily-ops/availability',
   DAILY_OPS_ASSIGNMENTS: '/daily-ops/assignments',
   DAILY_OPS_SNAPSHOT: '/daily-ops/director-snapshot',
+
+  // Notifications
+  NOTIFICATIONS: '/notifications',
 };

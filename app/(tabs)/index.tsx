@@ -45,6 +45,20 @@ interface QuickAction {
   route: string;
 }
 
+interface AppNotification {
+  _id: string;
+  title: string;
+  body: string;
+  createdAt: string;
+}
+
+interface NotifResponse {
+  data: AppNotification[];
+  total: number;
+  totalPages: number;
+  currentPage: number;
+}
+
 const ALL_ACTIONS: Record<string, QuickAction[]> = {
   DIRECTOR: [
     { id: 'trucks',      icon: 'car',                   label: 'Trucks',      color: Colors.primaryLight, route: '/(tabs)/trucks' },
@@ -111,6 +125,12 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [pinned, setPinned] = useState<string[]>([]);
   const [showEditor, setShowEditor] = useState(false);
+  const [showNotifs, setShowNotifs] = useState(false);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [notifTotal, setNotifTotal] = useState(0);
+  const [notifPage, setNotifPage] = useState(1);
+  const [notifTotalPages, setNotifTotalPages] = useState(1);
+  const [notifLoading, setNotifLoading] = useState(false);
 
   const role = (user?.role ?? 'STAFF') as keyof typeof ALL_ACTIONS;
   const allActions = ALL_ACTIONS[role] ?? ALL_ACTIONS.STAFF;
@@ -162,10 +182,32 @@ export default function DashboardScreen() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Pre-fetch notification count for badge
+  useEffect(() => {
+    api.get<NotifResponse>(`${ENDPOINTS.NOTIFICATIONS}?page=1&limit=1`)
+      .then(res => setNotifTotal(res.total ?? 0))
+      .catch(() => {});
+  }, []);
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadData();
   }, [loadData]);
+
+  const loadNotifications = useCallback(async (page = 1) => {
+    setNotifLoading(true);
+    try {
+      const res = await api.get<NotifResponse>(`${ENDPOINTS.NOTIFICATIONS}?page=${page}&limit=10`);
+      setNotifications(res.data ?? []);
+      setNotifTotal(res.total ?? 0);
+      setNotifTotalPages(res.totalPages ?? 1);
+      setNotifPage(page);
+    } catch {
+      // silently fail
+    } finally {
+      setNotifLoading(false);
+    }
+  }, []);
 
   const activeTrucks = trucks.filter(t => t.status === 'ACTIVE' || !t.status).length;
   const recentTrips = trips.slice(0, 5);
@@ -179,8 +221,13 @@ export default function DashboardScreen() {
           <Text style={styles.greeting}>{getGreeting()} 👋</Text>
           <Text style={styles.userName}>{user?.name ?? 'User'}</Text>
         </View>
-        <TouchableOpacity style={styles.notifBtn}>
+        <TouchableOpacity style={styles.notifBtn} onPress={() => { setShowNotifs(true); loadNotifications(1); }}>
           <Ionicons name="notifications-outline" size={24} color={Colors.white} />
+          {notifTotal > 0 && (
+            <View style={styles.notifBadge}>
+              <Text style={styles.notifBadgeText}>{notifTotal > 99 ? '99+' : notifTotal}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -254,6 +301,56 @@ export default function DashboardScreen() {
           ))
         )}
       </ScrollView>
+
+      {/* Notifications Modal */}
+      <Modal visible={showNotifs} animationType="slide" transparent onRequestClose={() => setShowNotifs(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowNotifs(false)} />
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHandle} />
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Notifications</Text>
+            <TouchableOpacity onPress={() => setShowNotifs(false)}>
+              <Ionicons name="close" size={22} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+          {notifLoading ? (
+            <OmLoader size="sm" text="" />
+          ) : notifications.length === 0 ? (
+            <View style={styles.notifEmpty}>
+              <Ionicons name="notifications-off-outline" size={40} color={Colors.textMuted} />
+              <Text style={styles.emptyText}>No notifications yet</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={notifications}
+              keyExtractor={item => item._id}
+              contentContainerStyle={{ paddingBottom: 16 }}
+              renderItem={({ item }) => <NotifCard notif={item} />}
+              ListFooterComponent={
+                notifTotalPages > 1 ? (
+                  <View style={styles.notifPager}>
+                    <TouchableOpacity
+                      onPress={() => loadNotifications(notifPage - 1)}
+                      disabled={notifPage === 1}
+                      style={[styles.pagerBtn, notifPage === 1 && styles.pagerBtnDisabled]}
+                    >
+                      <Ionicons name="chevron-back" size={18} color={notifPage === 1 ? Colors.textMuted : Colors.primary} />
+                    </TouchableOpacity>
+                    <Text style={styles.pagerText}>{notifPage} / {notifTotalPages}</Text>
+                    <TouchableOpacity
+                      onPress={() => loadNotifications(notifPage + 1)}
+                      disabled={notifPage === notifTotalPages}
+                      style={[styles.pagerBtn, notifPage === notifTotalPages && styles.pagerBtnDisabled]}
+                    >
+                      <Ionicons name="chevron-forward" size={18} color={notifPage === notifTotalPages ? Colors.textMuted : Colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                ) : null
+              }
+            />
+          )}
+        </View>
+      </Modal>
 
       {/* Customize Modal */}
       <Modal visible={showEditor} animationType="slide" transparent onRequestClose={() => setShowEditor(false)}>
@@ -347,6 +444,43 @@ function TripRow({ trip }: { trip: Trip }) {
     </View>
   );
 }
+
+function timeAgo(dateStr: string): string {
+  const diff = Math.max(0, Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000));
+  if (diff < 60)    return `${diff}s ago`;
+  if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 2592000) return `${Math.floor(diff / 86400)}d ago`;
+  return new Date(dateStr).toLocaleDateString();
+}
+
+function NotifCard({ notif }: { notif: AppNotification }) {
+  return (
+    <View style={notifCardStyles.card}>
+      <View style={notifCardStyles.left}>
+        <Text style={notifCardStyles.title}>{notif.title}</Text>
+        <Text style={notifCardStyles.body}>{notif.body}</Text>
+      </View>
+      <Text style={notifCardStyles.time}>{timeAgo(notif.createdAt)}</Text>
+    </View>
+  );
+}
+
+const notifCardStyles = StyleSheet.create({
+  card: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.sm + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    gap: Spacing.md,
+  },
+  left: { flex: 1 },
+  title: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text },
+  body: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
+  time: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: '600', flexShrink: 0, marginTop: 2 },
+});
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.primaryDark },
@@ -477,4 +611,35 @@ const styles = StyleSheet.create({
   actionRowPinned: { backgroundColor: Colors.inputBg, marginHorizontal: -Spacing.lg, paddingHorizontal: Spacing.lg },
   actionRowIcon: { width: 36, height: 36, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
   actionRowLabel: { flex: 1, fontSize: FontSize.md, color: Colors.text, fontWeight: '500' },
+  notifBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: Colors.orange,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  notifBadgeText: { fontSize: 10, fontWeight: '700', color: Colors.white },
+  notifEmpty: { alignItems: 'center', paddingVertical: Spacing.xl, gap: Spacing.sm },
+  notifPager: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  pagerBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.inputBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pagerBtnDisabled: { opacity: 0.4 },
+  pagerText: { fontSize: FontSize.md, fontWeight: '600', color: Colors.text },
 });
