@@ -13,7 +13,7 @@ import {
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import { Colors, Spacing, Radius, FontSize } from '@/constants/theme';
 
 export default function LoginScreen() {
