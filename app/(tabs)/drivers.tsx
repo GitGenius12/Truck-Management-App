@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -12,6 +13,7 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ListSkeleton } from '@/components/Skeleton';
+import NotificationBell from '@/components/NotificationBell';
 import { api } from '@/services/api';
 import { ENDPOINTS } from '@/constants/api';
 import { Colors, Spacing, Radius, FontSize } from '@/constants/theme';
@@ -47,7 +49,7 @@ export default function DriversScreen() {
     }
   }, []);
 
-  useEffect(() => { loadDrivers(); }, [loadDrivers]);
+  useFocusEffect(useCallback(() => { loadDrivers(); }, [loadDrivers]));
 
   useEffect(() => {
     if (!search.trim()) {
@@ -66,6 +68,7 @@ export default function DriversScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>Drivers</Text>
+        <NotificationBell />
       </View>
 
       <View style={styles.searchRow}>
@@ -149,6 +152,9 @@ export default function DriversScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.primaryDark,

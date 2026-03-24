@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -12,6 +13,7 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ListSkeleton } from '@/components/Skeleton';
+import NotificationBell from '@/components/NotificationBell';
 import { api } from '@/services/api';
 import { ENDPOINTS } from '@/constants/api';
 import { Colors, Spacing, Radius, FontSize } from '@/constants/theme';
@@ -61,7 +63,7 @@ export default function TrucksScreen() {
     }
   }, [endpoint]);
 
-  useEffect(() => { loadTrucks(); }, [loadTrucks]);
+  useFocusEffect(useCallback(() => { loadTrucks(); }, [loadTrucks]));
 
   useEffect(() => {
     if (!search.trim()) {
@@ -83,11 +85,14 @@ export default function TrucksScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>My Trucks</Text>
-        {canAdd && (
-          <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/trucks/add')}>
-            <Ionicons name="add" size={22} color={Colors.white} />
-          </TouchableOpacity>
-        )}
+        <View style={styles.headerRight}>
+          <NotificationBell />
+          {canAdd && (
+            <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/trucks/add')}>
+              <Ionicons name="add" size={22} color={Colors.white} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <View style={styles.searchRow}>
@@ -186,6 +191,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryDark,
   },
   title: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.white },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   addBtn: {
     width: 36,
     height: 36,

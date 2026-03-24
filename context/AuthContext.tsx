@@ -84,12 +84,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ]);
       if (token && userJson) {
         const storedUser: User = JSON.parse(userJson);
-        // Refresh tab access in background so restrictions are always up-to-date
-        const userWithAccess = await fetchAndMergeTabAccess(storedUser, token);
-        await AsyncStorage.setItem('auth_user', JSON.stringify(userWithAccess));
-        setState({ user: userWithAccess, token, isLoading: false });
-        OneSignal.login(userWithAccess._id ?? userWithAccess.id);
-        OneSignal.User.addTag('role', userWithAccess.role);
+        // Show user immediately — don't wait for network
+        setState({ user: storedUser, token, isLoading: false });
+        OneSignal.login(storedUser._id ?? storedUser.id);
+        OneSignal.User.addTag('role', storedUser.role);
+        // Refresh tab access in background (non-blocking)
+        fetchAndMergeTabAccess(storedUser, token).then(userWithAccess => {
+          AsyncStorage.setItem('auth_user', JSON.stringify(userWithAccess));
+          setState(s => ({ ...s, user: userWithAccess }));
+        }).catch(() => {});
       } else {
         setState(s => ({ ...s, isLoading: false }));
       }

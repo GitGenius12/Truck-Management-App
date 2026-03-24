@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ListSkeleton } from '@/components/Skeleton';
+import NotificationBell from '@/components/NotificationBell';
 import { api } from '@/services/api';
 import { ENDPOINTS } from '@/constants/api';
 import { Colors, Spacing, Radius, FontSize } from '@/constants/theme';
@@ -159,9 +160,12 @@ export default function AssignmentScreen() {
       {/* ── Header ─────────────────────────────── */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Assignments</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={openCreate}>
-          <Ionicons name="add" size={22} color={Colors.white} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <NotificationBell />
+          <TouchableOpacity style={styles.addBtn} onPress={openCreate}>
+            <Ionicons name="add" size={22} color={Colors.white} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* ── Date Navigator ──────────────────────── */}
@@ -339,6 +343,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryDark,
   },
   headerTitle: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.white },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   addBtn: {
     width: 36, height: 36, borderRadius: Radius.sm, backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center', justifyContent: 'center',

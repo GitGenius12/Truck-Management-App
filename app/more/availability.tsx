@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ListSkeleton } from '@/components/Skeleton';
+import NotificationBell from '@/components/NotificationBell';
 import { api } from '@/services/api';
 import { ENDPOINTS } from '@/constants/api';
 import { Colors, Spacing, Radius, FontSize } from '@/constants/theme';
@@ -124,6 +125,7 @@ export default function AvailabilityScreen() {
       {/* ── Header ─────────────────────────────── */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Availability</Text>
+        <NotificationBell />
       </View>
 
       {/* ── Date Navigator ──────────────────────── */}
@@ -255,6 +257,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
 
   header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md,
     backgroundColor: Colors.primaryDark,
   },
