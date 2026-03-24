@@ -1,32 +1,27 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../../constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import CustomTabBar from '@/components/CustomTabBar';
 
 export default function TabLayout() {
   const { user } = useAuth();
   const isDirector = user?.role === 'DIRECTOR';
   const access = user?.tabAccess ?? [];
 
-  // Directors bypass all checks; href: null removes tab + its space entirely
   const canSee = (tabId: string) => isDirector || access.includes(tabId);
   const hrefOrNull = (canAccess: boolean) => canAccess ? undefined : null;
 
   return (
     <Tabs
+      tabBar={props => <CustomTabBar {...props} />}
       screenOptions={{
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textMuted,
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: Colors.white,
-          borderTopColor: Colors.border,
-          height: 64,
-          paddingBottom: 8,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
+          position: 'absolute',
+          backgroundColor: 'transparent',
+          borderTopWidth: 0,
+          elevation: 0,
+          shadowOpacity: 0,
         },
       }}
     >
@@ -34,14 +29,18 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="trucks"
         options={{
           title: 'Trucks',
-          tabBarIcon: ({ color, size }) => <Ionicons name="car" size={size} color={color} />,
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? 'car' : 'car-outline'} size={size} color={color} />
+          ),
           href: hrefOrNull(canSee('my-trucks')),
         }}
       />
@@ -49,7 +48,9 @@ export default function TabLayout() {
         name="trips"
         options={{
           title: 'Trips',
-          tabBarIcon: ({ color, size }) => <Ionicons name="map" size={size} color={color} />,
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? 'map' : 'map-outline'} size={size} color={color} />
+          ),
           href: hrefOrNull(canSee('daily-ops') || canSee('trips')),
         }}
       />
@@ -57,7 +58,9 @@ export default function TabLayout() {
         name="drivers"
         options={{
           title: 'Drivers',
-          tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? 'people' : 'people-outline'} size={size} color={color} />
+          ),
           href: hrefOrNull(canSee('drivers')),
         }}
       />
@@ -65,7 +68,9 @@ export default function TabLayout() {
         name="availability"
         options={{
           title: 'Avail.',
-          tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-circle" size={size} color={color} />,
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? 'checkmark-circle' : 'checkmark-circle-outline'} size={size} color={color} />
+          ),
           href: hrefOrNull(user?.role === 'MANAGER' && canSee('availability')),
         }}
       />
@@ -73,7 +78,9 @@ export default function TabLayout() {
         name="assignment"
         options={{
           title: 'Assign',
-          tabBarIcon: ({ color, size }) => <Ionicons name="git-branch" size={size} color={color} />,
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? 'git-branch' : 'git-branch-outline'} size={size} color={color} />
+          ),
           href: hrefOrNull(user?.role === 'MANAGER' && canSee('assignments')),
         }}
       />
@@ -81,7 +88,9 @@ export default function TabLayout() {
         name="more"
         options={{
           title: 'More',
-          tabBarIcon: ({ color, size }) => <Ionicons name="grid" size={size} color={color} />,
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? 'grid' : 'grid-outline'} size={size} color={color} />
+          ),
         }}
       />
     </Tabs>

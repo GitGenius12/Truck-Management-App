@@ -105,7 +105,7 @@ export default function ApprovalsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-  list: { padding: Spacing.lg, paddingBottom: 40 },
+  list: { padding: Spacing.lg, paddingBottom: 120 },
   empty: { alignItems: 'center', paddingTop: 60, gap: Spacing.sm },
   emptyText: { fontSize: FontSize.md, color: Colors.textMuted },
   card: {

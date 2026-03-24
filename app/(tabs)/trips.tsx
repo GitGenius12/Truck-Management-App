@@ -489,7 +489,7 @@ const styles = StyleSheet.create({
   },
   searchBtnText: { fontSize: FontSize.xs, color: Colors.white, fontWeight: '700' },
   // List
-  list: { padding: Spacing.lg, paddingBottom: 40 },
+  list: { padding: Spacing.lg, paddingBottom: 120 },
   empty: { alignItems: 'center', paddingTop: 60, gap: Spacing.sm },
   emptyText: { fontSize: FontSize.md, color: Colors.textMuted },
   emptyBtn: {

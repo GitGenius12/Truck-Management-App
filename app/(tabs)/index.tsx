@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
   greeting: { fontSize: FontSize.sm, color: 'rgba(255,255,255,0.7)' },
   userName: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.white },
   scroll: { flex: 1, backgroundColor: Colors.background },
-  scrollContent: { padding: Spacing.lg, paddingBottom: 40 },
+  scrollContent: { padding: Spacing.lg, paddingBottom: 120 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionLabel: {
     fontSize: FontSize.xs,

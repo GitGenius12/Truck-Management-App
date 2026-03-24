@@ -141,7 +141,7 @@ function SummaryCard({ label, value, icon }: { label: string; value: string; ico
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-  list: { padding: Spacing.lg, paddingBottom: 40 },
+  list: { padding: Spacing.lg, paddingBottom: 120 },
   summaryRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
   summaryCard: {
     flex: 1, backgroundColor: Colors.white, borderRadius: Radius.md, padding: Spacing.md,

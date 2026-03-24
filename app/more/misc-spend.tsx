@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
   },
   summaryLabel: { fontSize: FontSize.sm, color: 'rgba(255,255,255,0.7)' },
   summaryValue: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.white },
-  list: { padding: Spacing.lg, paddingBottom: 40 },
+  list: { padding: Spacing.lg, paddingBottom: 120 },
   empty: { alignItems: 'center', paddingTop: 60, gap: Spacing.sm },
   emptyText: { fontSize: FontSize.md, color: Colors.textMuted },
   card: {

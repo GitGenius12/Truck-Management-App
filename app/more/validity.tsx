@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
   filterBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   filterText: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textSecondary },
   filterTextActive: { color: Colors.white },
-  list: { paddingHorizontal: Spacing.lg, paddingBottom: 40 },
+  list: { paddingHorizontal: Spacing.lg, paddingBottom: 120 },
   empty: { alignItems: 'center', paddingTop: 60, gap: Spacing.sm },
   emptyText: { fontSize: FontSize.md, color: Colors.textMuted },
   card: {

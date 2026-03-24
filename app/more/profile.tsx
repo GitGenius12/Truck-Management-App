@@ -108,7 +108,7 @@ function InfoRow({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  content: { paddingBottom: 40 },
+  content: { paddingBottom: 120 },
 
   hero: {
     alignItems: 'center',

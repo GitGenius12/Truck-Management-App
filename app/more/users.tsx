@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
   },
   searchIcon: { marginRight: Spacing.sm },
   searchInput: { flex: 1, fontSize: FontSize.md, color: Colors.text },
-  list: { paddingHorizontal: Spacing.lg, paddingBottom: 40 },
+  list: { paddingHorizontal: Spacing.lg, paddingBottom: 120 },
   empty: { alignItems: 'center', paddingTop: 60, gap: Spacing.sm },
   emptyText: { fontSize: FontSize.md, color: Colors.textMuted },
   card: {

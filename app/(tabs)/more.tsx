@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.white },
   scroll: { flex: 1 },
-  scrollContent: { padding: Spacing.lg, paddingBottom: 40 },
+  scrollContent: { padding: Spacing.lg, paddingBottom: 120 },
   userCard: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white,
     borderRadius: Radius.lg, padding: Spacing.md, marginBottom: Spacing.lg, gap: Spacing.md,
