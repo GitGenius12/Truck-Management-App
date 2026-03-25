@@ -56,12 +56,96 @@ const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
 const { height: SCREEN_H } = Dimensions.get('window');
 const SHEET_H = SCREEN_H * 0.62;
 
+const MONTH_FULL = ['', 'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+
 function buildQuery(params: Record<string, string>) {
   const q = Object.entries(params)
     .filter(([, v]) => v !== '')
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join('&');
   return q ? `?${q}` : '';
+}
+
+/** Human-readable label for what period/scope the totals cover */
+function buildPeriodLabel(f: { search: string; month: string; year: string; status: string; type: string; bank: string }) {
+  const parts: string[] = [];
+  if (f.month && f.year) parts.push(`${MONTH_FULL[parseInt(f.month)]} ${f.year}`);
+  else if (f.month) parts.push(MONTH_FULL[parseInt(f.month)]);
+  else if (f.year) parts.push(`Year ${f.year}`);
+  if (f.type === 'false') parts.push('Driver Salaries');
+  else if (f.type === 'true') parts.push('Misc Spends');
+  if (f.status) parts.push(f.status.charAt(0) + f.status.slice(1).toLowerCase());
+  if (f.bank) parts.push(f.bank);
+  if (f.search) parts.push(`"${f.search}"`);
+  return parts.length > 0 ? parts.join(' · ') : 'All Time';
+}
+
+// ── Spend Summary Card ───────────────────────────────────────────
+function SpendSummaryCard({ txns, applied, count }: {
+  txns: Transaction[];
+  applied: { search: string; month: string; year: string; status: string; type: string; bank: string };
+  count: number;
+}) {
+  const totalSpend = txns.reduce((s, t) => s + (t.totalPayout ?? 0), 0);
+  const totalPaid  = txns.reduce((s, t) => s + (t.paidAmount ?? 0), 0);
+  const totalPending = Math.max(0, totalSpend - totalPaid);
+  const period = buildPeriodLabel(applied);
+  const hasFilter = Object.values(applied).some(v => v !== '');
+
+  function fmt(n: number) {
+    return '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+  }
+
+  return (
+    <View style={sum.card}>
+      {/* Top row: label + period badge */}
+      <View style={sum.topRow}>
+        <View style={sum.labelGroup}>
+          <Text style={sum.eyebrow}>TOTAL SPEND</Text>
+          <View style={sum.periodRow}>
+            <Ionicons name={hasFilter ? 'funnel' : 'time-outline'} size={12} color="rgba(255,255,255,0.55)" />
+            <Text style={sum.period}>{period}</Text>
+          </View>
+        </View>
+        <View style={sum.countBadge}>
+          <Text style={sum.countBadgeText}>{count} txn{count !== 1 ? 's' : ''}</Text>
+        </View>
+      </View>
+
+      {/* Big spend number */}
+      <Text style={sum.bigAmount}>{fmt(totalSpend)}</Text>
+
+      {/* Paid / Pending split */}
+      <View style={sum.splitRow}>
+        <View style={sum.splitItem}>
+          <View style={[sum.splitDot, { backgroundColor: '#4ade80' }]} />
+          <View>
+            <Text style={sum.splitLabel}>Paid</Text>
+            <Text style={sum.splitValue}>{fmt(totalPaid)}</Text>
+          </View>
+        </View>
+        <View style={sum.splitDivider} />
+        <View style={sum.splitItem}>
+          <View style={[sum.splitDot, { backgroundColor: '#f87171' }]} />
+          <View>
+            <Text style={sum.splitLabel}>Pending</Text>
+            <Text style={sum.splitValue}>{fmt(totalPending)}</Text>
+          </View>
+        </View>
+        <View style={sum.splitDivider} />
+        <View style={sum.splitItem}>
+          <View style={[sum.splitDot, { backgroundColor: '#a78bfa' }]} />
+          <View>
+            <Text style={sum.splitLabel}>Recovery %</Text>
+            <Text style={sum.splitValue}>
+              {totalSpend > 0 ? `${Math.round((totalPaid / totalSpend) * 100)}%` : '—'}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
 }
 
 // ── Dark pill chip ───────────────────────────────────────────────
@@ -284,6 +368,9 @@ export default function TransactionsScreen() {
           keyExtractor={i => i._id}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
+          ListHeaderComponent={txns.length > 0 ? (
+            <SpendSummaryCard txns={txns} applied={applied} count={total} />
+          ) : null}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="cash-outline" size={48} color={Colors.textMuted} />
@@ -404,6 +491,44 @@ const styles = StyleSheet.create({
     width: 8, height: 8, borderRadius: 4,
     backgroundColor: Colors.error, borderWidth: 1.5, borderColor: Colors.white,
   },
+});
+
+// ── Summary card styles ──────────────────────────────────────────
+const sum = StyleSheet.create({
+  card: {
+    backgroundColor: Colors.primaryDark,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    shadowColor: Colors.primaryDark,
+    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.5, shadowRadius: 12, elevation: 6,
+    overflow: 'hidden',
+  },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
+  labelGroup: { gap: 4 },
+  eyebrow: { fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.45)', letterSpacing: 1.2, textTransform: 'uppercase' },
+  periodRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  period: { fontSize: FontSize.sm, fontWeight: '600', color: 'rgba(255,255,255,0.75)' },
+  countBadge: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: Radius.full,
+    paddingHorizontal: 10, paddingVertical: 4,
+  },
+  countBadgeText: { fontSize: FontSize.xs, fontWeight: '700', color: 'rgba(255,255,255,0.8)' },
+  bigAmount: {
+    fontSize: 36, fontWeight: '800', color: '#fff',
+    letterSpacing: -0.5, marginVertical: Spacing.sm,
+  },
+  splitRow: {
+    flexDirection: 'row', alignItems: 'center',
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)',
+    paddingTop: Spacing.sm, marginTop: Spacing.xs,
+  },
+  splitItem: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  splitDot: { width: 8, height: 8, borderRadius: 4 },
+  splitDivider: { width: 1, height: 32, backgroundColor: 'rgba(255,255,255,0.1)' },
+  splitLabel: { fontSize: 10, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: 0.5 },
+  splitValue: { fontSize: FontSize.sm, fontWeight: '700', color: '#fff', marginTop: 1 },
 });
 
 // ── Dark sheet styles ────────────────────────────────────────────

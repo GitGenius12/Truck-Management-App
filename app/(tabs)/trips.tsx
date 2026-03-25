@@ -1,17 +1,11 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  RefreshControl,
-  TextInput,
-  Modal,
+  View, Text, FlatList, TouchableOpacity, StyleSheet,
+  RefreshControl, TextInput, Modal, Animated, Dimensions, Pressable,
 } from 'react-native';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ListSkeleton } from '@/components/Skeleton';
 import NotificationBell from '@/components/NotificationBell';
@@ -20,6 +14,7 @@ import { ENDPOINTS } from '@/constants/api';
 import { Colors, Spacing, Radius, FontSize } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 
+// ── Types ────────────────────────────────────────────────────────
 interface Trip {
   _id: string;
   truckId?: { _id: string; truckNumber: string } | string;
@@ -33,28 +28,22 @@ interface Trip {
   createdBy?: { name: string };
 }
 
-// ── date helpers ────────────────────────────────────────────────────────────
-
+// ── Date helpers ─────────────────────────────────────────────────
 function formatDate(dateStr?: string) {
   if (!dateStr) return '';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function formatChipDate(iso: string): string {
+function formatChipDate(iso: string) {
   if (!iso) return '';
   const [y, m, d] = iso.split('-');
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${parseInt(d)} ${months[parseInt(m) - 1]} ${y}`;
 }
 
-// ── calendar picker ─────────────────────────────────────────────────────────
-
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
+// ── Calendar picker (unchanged) ──────────────────────────────────
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
 function buildGrid(year: number, month: number): (number | null)[] {
@@ -67,14 +56,9 @@ function buildGrid(year: number, month: number): (number | null)[] {
   return cells;
 }
 
-function CalendarPicker({
-  visible, value, label, onSelect, onClose,
-}: {
-  visible: boolean;
-  value: string;
-  label: string;
-  onSelect: (iso: string) => void;
-  onClose: () => void;
+function CalendarPicker({ visible, value, label, onSelect, onClose }: {
+  visible: boolean; value: string; label: string;
+  onSelect: (iso: string) => void; onClose: () => void;
 }) {
   const init = value ? new Date(value + 'T00:00:00') : new Date();
   const [vy, setVy] = useState(init.getFullYear());
@@ -87,19 +71,12 @@ function CalendarPicker({
     }
   }, [visible, value]);
 
-  function prev() {
-    if (vm === 0) { setVm(11); setVy(y => y - 1); }
-    else setVm(m => m - 1);
-  }
-  function next() {
-    if (vm === 11) { setVm(0); setVy(y => y + 1); }
-    else setVm(m => m + 1);
-  }
+  function prev() { if (vm === 0) { setVm(11); setVy(y => y - 1); } else setVm(m => m - 1); }
+  function next() { if (vm === 11) { setVm(0); setVy(y => y + 1); } else setVm(m => m + 1); }
 
   const grid = buildGrid(vy, vm);
   const selDate = value ? new Date(value + 'T00:00:00') : null;
-  const selectedDay = selDate && selDate.getFullYear() === vy && selDate.getMonth() === vm
-    ? selDate.getDate() : null;
+  const selectedDay = selDate && selDate.getFullYear() === vy && selDate.getMonth() === vm ? selDate.getDate() : null;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -123,21 +100,11 @@ function CalendarPicker({
           {grid.map((day, idx) => {
             const sel = day !== null && day === selectedDay;
             return (
-              <TouchableOpacity
-                key={idx}
-                style={[cal.cell, sel && cal.cellSel]}
-                onPress={() => {
-                  if (day) {
-                    onSelect(`${vy}-${String(vm + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`);
-                    onClose();
-                  }
-                }}
-                disabled={day === null}
-                activeOpacity={0.7}
+              <TouchableOpacity key={idx} style={[cal.cell, sel && cal.cellSel]}
+                onPress={() => { if (day) { onSelect(`${vy}-${String(vm + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`); onClose(); } }}
+                disabled={day === null} activeOpacity={0.7}
               >
-                {day !== null && (
-                  <Text style={[cal.cellText, sel && cal.cellTextSel]}>{day}</Text>
-                )}
+                {day !== null && <Text style={[cal.cellText, sel && cal.cellTextSel]}>{day}</Text>}
               </TouchableOpacity>
             );
           })}
@@ -153,200 +120,140 @@ function CalendarPicker({
   );
 }
 
-// ── main screen ─────────────────────────────────────────────────────────────
+// ── Filter sheet ─────────────────────────────────────────────────
+const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get('window');
+const SHEET_H = SCREEN_H * 0.56;
 
-export default function TripsScreen() {
-  const { user } = useAuth();
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [search, setSearch] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+function FilterSheet({ visible, onClose, onApply, onClear, hasFilters,
+  search, setSearch, startDate, setStartDate, endDate, setEndDate }: {
+  visible: boolean; onClose: () => void; onApply: () => void; onClear: () => void;
+  hasFilters: boolean; search: string; setSearch: (v: string) => void;
+  startDate: string; setStartDate: (v: string) => void;
+  endDate: string; setEndDate: (v: string) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const translateY = useRef(new Animated.Value(SHEET_H)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
   const [pickerFor, setPickerFor] = useState<'start' | 'end' | null>(null);
 
-  // Keep a ref so useFocusEffect can read current filters without stale closure
-  const filtersRef = useRef({ search: '', startDate: '', endDate: '' });
   useEffect(() => {
-    filtersRef.current = { search, startDate, endDate };
-  }, [search, startDate, endDate]);
-
-  const canAdd = user?.role === 'STAFF';
-
-  const loadTrips = useCallback(async (
-    p: number, q: string, sd: string, ed: string, silent = false,
-  ) => {
-    if (!silent) setLoading(true);
-    try {
-      const params: string[] = [`page=${p}`, 'limit=20'];
-      if (q.trim()) params.push(`truckNumber=${encodeURIComponent(q.trim())}`);
-      if (sd) params.push(`startDate=${sd}`);
-      if (ed) params.push(`endDate=${ed}`);
-      const data = await api.get<any>(`${ENDPOINTS.TRIPS}?${params.join('&')}`);
-      setTrips(data.trips ?? []);
-      setTotalPages(data.totalPages ?? 1);
-      setPage(p);
-    } catch {
-      //
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 22, stiffness: 200 }),
+        Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(translateY, { toValue: SHEET_H, duration: 220, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0, duration: 180, useNativeDriver: true }),
+      ]).start();
     }
-  }, []);
-
-  useFocusEffect(useCallback(() => {
-    const f = filtersRef.current;
-    loadTrips(1, f.search, f.startDate, f.endDate);
-  }, [loadTrips]));
-
-  function applyFilters() {
-    loadTrips(1, search, startDate, endDate);
-  }
-
-  function clearFilters() {
-    setSearch('');
-    setStartDate('');
-    setEndDate('');
-    loadTrips(1, '', '', '');
-  }
-
-  const hasFilter = !!(search.trim() || startDate || endDate);
+  }, [visible]);
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Trips</Text>
-        <View style={styles.headerRight}>
-          <NotificationBell />
-          {canAdd && (
-            <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/trips/add')}>
-              <Ionicons name="add" size={22} color={Colors.white} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+    <>
+      <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+        {/* Backdrop */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
+          <Animated.View style={[StyleSheet.absoluteFill, fs.backdrop, { opacity }]} />
+        </Pressable>
 
-      {/* Filter bar */}
-      <View style={styles.filterBar}>
-        {/* Search row */}
-        <View style={styles.searchRow}>
-          <Ionicons name="search" size={16} color={Colors.textMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by truck number..."
-            placeholderTextColor={Colors.textMuted}
-            value={search}
-            onChangeText={setSearch}
-            autoCapitalize="characters"
-            returnKeyType="search"
-            onSubmitEditing={applyFilters}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => { setSearch(''); loadTrips(1, '', startDate, endDate); }}>
-              <Ionicons name="close-circle" size={16} color={Colors.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
+        {/* Sheet */}
+        <Animated.View
+          style={[fs.sheet, { height: SHEET_H, paddingBottom: insets.bottom + 16, transform: [{ translateY }] }]}
+          pointerEvents="box-none"
+        >
+          <View style={fs.handle} />
 
-        {/* Date range row */}
-        <View style={styles.dateRow}>
-          <TouchableOpacity
-            style={[styles.dateChip, startDate ? styles.dateChipActive : null]}
-            onPress={() => setPickerFor('start')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="calendar-outline" size={13} color={startDate ? Colors.primary : Colors.textMuted} />
-            <Text style={[styles.dateChipText, startDate ? styles.dateChipTextActive : null]}>
-              {startDate ? formatChipDate(startDate) : 'From'}
-            </Text>
-          </TouchableOpacity>
-
-          <Ionicons name="arrow-forward" size={13} color={Colors.textMuted} style={styles.arrowIcon} />
-
-          <TouchableOpacity
-            style={[styles.dateChip, endDate ? styles.dateChipActive : null]}
-            onPress={() => setPickerFor('end')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="calendar-outline" size={13} color={endDate ? Colors.primary : Colors.textMuted} />
-            <Text style={[styles.dateChipText, endDate ? styles.dateChipTextActive : null]}>
-              {endDate ? formatChipDate(endDate) : 'To'}
-            </Text>
-          </TouchableOpacity>
-
-          <View style={styles.dateActions}>
-            <TouchableOpacity style={styles.searchBtn} onPress={applyFilters}>
-              <Text style={styles.searchBtnText}>Search</Text>
-            </TouchableOpacity>
-            {hasFilter && (
-              <TouchableOpacity onPress={clearFilters}>
-                <Ionicons name="close-circle" size={20} color={Colors.textMuted} />
+          {/* Search */}
+          <View style={fs.groupLabel}>
+            <Text style={fs.groupLabelText}>TRUCK NUMBER</Text>
+          </View>
+          <View style={fs.searchRow}>
+            <Ionicons name="search-outline" size={15} color="rgba(255,255,255,0.4)" />
+            <TextInput
+              style={fs.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="e.g. MH12AB1234"
+              placeholderTextColor="rgba(255,255,255,0.28)"
+              autoCapitalize="characters"
+              returnKeyType="done"
+            />
+            {!!search && (
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <Ionicons name="close-circle" size={15} color="rgba(255,255,255,0.35)" />
               </TouchableOpacity>
             )}
           </View>
-        </View>
-      </View>
 
-      {/* List */}
-      {loading ? (
-        <ListSkeleton count={5} lines={2} />
-      ) : (
-        <FlatList
-          data={trips}
-          keyExtractor={item => item._id}
-          contentContainerStyle={styles.list}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                loadTrips(page, search, startDate, endDate, true);
-              }}
-              tintColor={Colors.primary}
-            />
-          }
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Ionicons name="map-outline" size={48} color={Colors.textMuted} />
-              <Text style={styles.emptyText}>
-                {hasFilter ? 'No trips match your filters' : 'No trips found'}
+          {/* Date range */}
+          <View style={fs.groupLabel}>
+            <Text style={fs.groupLabelText}>DATE RANGE</Text>
+          </View>
+          <View style={fs.dateRow}>
+            {/* From */}
+            <TouchableOpacity
+              style={[fs.dateChip, !!startDate && fs.dateChipActive]}
+              onPress={() => setPickerFor('start')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="calendar-outline" size={14} color={startDate ? '#fff' : 'rgba(255,255,255,0.45)'} />
+              <Text style={[fs.dateChipText, !!startDate && fs.dateChipTextActive]}>
+                {startDate ? formatChipDate(startDate) : 'From date'}
               </Text>
-              {canAdd && !hasFilter && (
-                <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push('/trips/add')}>
-                  <Text style={styles.emptyBtnText}>Add Trip</Text>
+              {!!startDate && (
+                <TouchableOpacity onPress={() => setStartDate('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close-circle" size={13} color="rgba(255,255,255,0.6)" />
                 </TouchableOpacity>
               )}
-            </View>
-          }
-          ListFooterComponent={
-            totalPages > 1 ? (
-              <View style={styles.pager}>
-                <TouchableOpacity
-                  style={[styles.pagerBtn, page === 1 && styles.pagerBtnDisabled]}
-                  onPress={() => loadTrips(page - 1, search, startDate, endDate)}
-                  disabled={page === 1}
-                >
-                  <Ionicons name="chevron-back" size={18} color={page === 1 ? Colors.textMuted : Colors.primary} />
-                </TouchableOpacity>
-                <Text style={styles.pagerText}>{page} / {totalPages}</Text>
-                <TouchableOpacity
-                  style={[styles.pagerBtn, page === totalPages && styles.pagerBtnDisabled]}
-                  onPress={() => loadTrips(page + 1, search, startDate, endDate)}
-                  disabled={page === totalPages}
-                >
-                  <Ionicons name="chevron-forward" size={18} color={page === totalPages ? Colors.textMuted : Colors.primary} />
-                </TouchableOpacity>
-              </View>
-            ) : null
-          }
-          renderItem={({ item }) => <TripCard trip={item} />}
-        />
-      )}
+            </TouchableOpacity>
 
-      {/* Calendar pickers */}
+            <Ionicons name="arrow-forward-outline" size={14} color="rgba(255,255,255,0.3)" />
+
+            {/* To */}
+            <TouchableOpacity
+              style={[fs.dateChip, !!endDate && fs.dateChipActive]}
+              onPress={() => setPickerFor('end')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="calendar-outline" size={14} color={endDate ? '#fff' : 'rgba(255,255,255,0.45)'} />
+              <Text style={[fs.dateChipText, !!endDate && fs.dateChipTextActive]}>
+                {endDate ? formatChipDate(endDate) : 'To date'}
+              </Text>
+              {!!endDate && (
+                <TouchableOpacity onPress={() => setEndDate('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close-circle" size={13} color="rgba(255,255,255,0.6)" />
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Active filter tags */}
+          {hasFilters && (
+            <View style={fs.tagsRow}>
+              {search ? <View style={fs.tag}><Text style={fs.tagText}>🔍 {search}</Text></View> : null}
+              {startDate ? <View style={fs.tag}><Text style={fs.tagText}>From {formatChipDate(startDate)}</Text></View> : null}
+              {endDate ? <View style={fs.tag}><Text style={fs.tagText}>To {formatChipDate(endDate)}</Text></View> : null}
+            </View>
+          )}
+
+          {/* Action buttons */}
+          <View style={fs.actionRow}>
+            {hasFilters && (
+              <TouchableOpacity style={fs.clearBtn} onPress={onClear} activeOpacity={0.75}>
+                <Text style={fs.clearText}>Clear all</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={fs.applyBtn} onPress={onApply} activeOpacity={0.85}>
+              <Ionicons name="search-outline" size={15} color="#111827" />
+              <Text style={fs.applyText}>Search trips</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      </Modal>
+
+      {/* Calendar pickers — rendered outside the sheet modal so they layer on top */}
       <CalendarPicker
         visible={pickerFor === 'start'}
         value={startDate}
@@ -361,23 +268,193 @@ export default function TripsScreen() {
         onSelect={setEndDate}
         onClose={() => setPickerFor(null)}
       />
+    </>
+  );
+}
+
+// ── Main screen ──────────────────────────────────────────────────
+export default function TripsScreen() {
+  const { user } = useAuth();
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  // filter draft (inside sheet)
+  const [search, setSearch] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  // applied filters
+  const [applied, setApplied] = useState({ search: '', startDate: '', endDate: '' });
+
+  const hasFilters = !!(applied.search.trim() || applied.startDate || applied.endDate);
+  const canAdd = user?.role === 'STAFF';
+
+  const filtersRef = useRef(applied);
+  useEffect(() => { filtersRef.current = applied; }, [applied]);
+
+  const loadTrips = useCallback(async (p: number, q: string, sd: string, ed: string, silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const params: string[] = [`page=${p}`, 'limit=20'];
+      if (q.trim()) params.push(`truckNumber=${encodeURIComponent(q.trim())}`);
+      if (sd) params.push(`startDate=${sd}`);
+      if (ed) params.push(`endDate=${ed}`);
+      const data = await api.get<any>(`${ENDPOINTS.TRIPS}?${params.join('&')}`);
+      setTrips(data.trips ?? []);
+      setTotalPages(data.totalPages ?? 1);
+      setPage(p);
+    } catch { }
+    finally { setLoading(false); setRefreshing(false); }
+  }, []);
+
+  useFocusEffect(useCallback(() => {
+    const f = filtersRef.current;
+    loadTrips(1, f.search, f.startDate, f.endDate);
+  }, [loadTrips]));
+
+  function applyFilters() {
+    const f = { search, startDate, endDate };
+    setApplied(f);
+    loadTrips(1, f.search, f.startDate, f.endDate);
+    setSheetOpen(false);
+  }
+
+  function clearFilters() {
+    const empty = { search: '', startDate: '', endDate: '' };
+    setSearch(''); setStartDate(''); setEndDate('');
+    setApplied(empty);
+    loadTrips(1, '', '', '');
+    setSheetOpen(false);
+  }
+
+  function openSheet() {
+    // sync draft with applied
+    setSearch(applied.search);
+    setStartDate(applied.startDate);
+    setEndDate(applied.endDate);
+    setSheetOpen(true);
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Trips</Text>
+        <View style={styles.headerRight}>
+          {/* Applied filter summary chip */}
+          {hasFilters && (
+            <TouchableOpacity style={styles.activeFilterChip} onPress={openSheet}>
+              <Ionicons name="funnel" size={12} color={Colors.primary} />
+              <Text style={styles.activeFilterText}>
+                {[applied.search, applied.startDate && formatChipDate(applied.startDate), applied.endDate && formatChipDate(applied.endDate)]
+                  .filter(Boolean).join(' → ')}
+              </Text>
+              <TouchableOpacity onPress={clearFilters} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close-circle" size={13} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </TouchableOpacity>
+          )}
+          <NotificationBell />
+          {canAdd && (
+            <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/trips/add')}>
+              <Ionicons name="add" size={22} color={Colors.white} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* List */}
+      {loading ? (
+        <ListSkeleton count={5} lines={2} />
+      ) : (
+        <FlatList
+          data={trips}
+          keyExtractor={item => item._id}
+          contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => { setRefreshing(true); loadTrips(page, applied.search, applied.startDate, applied.endDate, true); }}
+              tintColor={Colors.primary}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Ionicons name="map-outline" size={48} color={Colors.textMuted} />
+              <Text style={styles.emptyText}>{hasFilters ? 'No trips match your filters' : 'No trips found'}</Text>
+              {hasFilters && (
+                <TouchableOpacity style={styles.emptyBtn} onPress={clearFilters}>
+                  <Text style={styles.emptyBtnText}>Clear filters</Text>
+                </TouchableOpacity>
+              )}
+              {canAdd && !hasFilters && (
+                <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push('/trips/add')}>
+                  <Text style={styles.emptyBtnText}>Add Trip</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          }
+          ListFooterComponent={
+            totalPages > 1 ? (
+              <View style={styles.pager}>
+                <TouchableOpacity
+                  style={[styles.pagerBtn, page === 1 && styles.pagerBtnDisabled]}
+                  onPress={() => loadTrips(page - 1, applied.search, applied.startDate, applied.endDate)}
+                  disabled={page === 1}
+                >
+                  <Ionicons name="chevron-back" size={18} color={page === 1 ? Colors.textMuted : Colors.primary} />
+                </TouchableOpacity>
+                <Text style={styles.pagerText}>{page} / {totalPages}</Text>
+                <TouchableOpacity
+                  style={[styles.pagerBtn, page === totalPages && styles.pagerBtnDisabled]}
+                  onPress={() => loadTrips(page + 1, applied.search, applied.startDate, applied.endDate)}
+                  disabled={page === totalPages}
+                >
+                  <Ionicons name="chevron-forward" size={18} color={page === totalPages ? Colors.textMuted : Colors.primary} />
+                </TouchableOpacity>
+              </View>
+            ) : null
+          }
+          renderItem={({ item }) => <TripCard trip={item} />}
+        />
+      )}
+
+      {/* ── Circular filter FAB ── */}
+      <TouchableOpacity
+        style={[styles.filterFab, hasFilters && styles.filterFabActive]}
+        onPress={openSheet}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="options-outline" size={22} color="#fff" />
+        {hasFilters && <View style={styles.fabDot} />}
+      </TouchableOpacity>
+
+      <FilterSheet
+        visible={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        onApply={applyFilters}
+        onClear={clearFilters}
+        hasFilters={!!(search.trim() || startDate || endDate)}
+        search={search}
+        setSearch={setSearch}
+        startDate={startDate}
+        setStartDate={setStartDate}
+        endDate={endDate}
+        setEndDate={setEndDate}
+      />
     </SafeAreaView>
   );
 }
 
-// ── trip card ────────────────────────────────────────────────────────────────
-
+// ── Trip card ────────────────────────────────────────────────────
 function TripCard({ trip }: { trip: Trip }) {
-  const truckNum =
-    typeof trip.truckId === 'object' && trip.truckId
-      ? trip.truckId.truckNumber
-      : 'Unknown Truck';
-  const km = trip.previousKm != null && trip.currentKm != null
-    ? trip.currentKm - trip.previousKm
-    : null;
-  const mileage = km && trip.diesel
-    ? (km / trip.diesel).toFixed(1)
-    : null;
+  const truckNum = typeof trip.truckId === 'object' && trip.truckId ? trip.truckId.truckNumber : 'Unknown Truck';
+  const km = trip.previousKm != null && trip.currentKm != null ? trip.currentKm - trip.previousKm : null;
+  const mileage = km && trip.diesel ? (km / trip.diesel).toFixed(1) : null;
 
   return (
     <View style={styles.card}>
@@ -393,9 +470,7 @@ function TripCard({ trip }: { trip: Trip }) {
         <TripStat icon="speedometer-outline" label="Distance" value={km != null ? `${km} km` : '--'} />
         <TripStat icon="water-outline" label="Diesel" value={trip.diesel ? `${trip.diesel} L` : '--'} />
         <TripStat icon="flash-outline" label="Mileage" value={mileage ? `${mileage} km/L` : '--'} color={Colors.success} />
-        {trip.cash ? (
-          <TripStat icon="cash-outline" label="Cash" value={`₹${trip.cash}`} />
-        ) : null}
+        {trip.cash ? <TripStat icon="cash-outline" label="Cash" value={`₹${trip.cash}`} /> : null}
       </View>
     </View>
   );
@@ -411,124 +486,41 @@ function TripStat({ icon, label, value, color }: { icon: string; label: string; 
   );
 }
 
-// ── styles ───────────────────────────────────────────────────────────────────
-
+// ── Styles ───────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md,
     backgroundColor: Colors.primaryDark,
   },
   title: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.white },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1, justifyContent: 'flex-end' },
+  activeFilterChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: Radius.full, paddingHorizontal: 10, paddingVertical: 5,
+    maxWidth: 160,
+  },
+  activeFilterText: { fontSize: 10, color: 'rgba(255,255,255,0.9)', fontWeight: '600', flex: 1 },
   addBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 36, height: 36, borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
-  // Filter bar
-  filterBar: {
-    backgroundColor: Colors.white,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    gap: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.inputBg,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 8,
-    gap: Spacing.xs,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: FontSize.sm,
-    color: Colors.text,
-    paddingVertical: 0,
-  },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  dateChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.inputBg,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  dateChipActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.tealBg,
-  },
-  dateChipText: { fontSize: FontSize.xs, color: Colors.textMuted, fontWeight: '500' },
-  dateChipTextActive: { color: Colors.primary },
-  arrowIcon: { marginHorizontal: 2 },
-  dateActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginLeft: 'auto' },
-  searchBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
-  },
-  searchBtnText: { fontSize: FontSize.xs, color: Colors.white, fontWeight: '700' },
-  // List
-  list: { padding: Spacing.lg, paddingBottom: 120 },
+  list: { padding: Spacing.lg, paddingBottom: 130 },
   empty: { alignItems: 'center', paddingTop: 60, gap: Spacing.sm },
   emptyText: { fontSize: FontSize.md, color: Colors.textMuted },
-  emptyBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    marginTop: Spacing.xs,
-  },
+  emptyBtn: { backgroundColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, marginTop: Spacing.xs },
   emptyBtnText: { color: Colors.white, fontWeight: '600' },
-  // Pagination
-  pager: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
-  pagerBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.inputBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  pager: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.lg, paddingVertical: Spacing.md },
+  pagerBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.inputBg, alignItems: 'center', justifyContent: 'center' },
   pagerBtnDisabled: { opacity: 0.4 },
   pagerText: { fontSize: FontSize.md, fontWeight: '600', color: Colors.text },
-  // Trip card
   card: {
-    backgroundColor: Colors.white,
-    borderRadius: Radius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    elevation: 2,
+    backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md,
+    marginBottom: Spacing.sm, shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2,
   },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: Spacing.sm },
   regNum: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text },
@@ -539,73 +531,106 @@ const styles = StyleSheet.create({
   stat: { flex: 1, alignItems: 'center', gap: 2 },
   statValue: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.text },
   statLabel: { fontSize: FontSize.xs, color: Colors.textMuted },
+  // FAB
+  filterFab: {
+    position: 'absolute', bottom: 100,
+    left: SCREEN_W / 2 - 28,
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: '#111827',
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.38, shadowRadius: 10, elevation: 9,
+  },
+  filterFabActive: { backgroundColor: Colors.primary },
+  fabDot: {
+    position: 'absolute', top: 10, right: 10,
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: Colors.error, borderWidth: 1.5, borderColor: Colors.white,
+  },
 });
 
+// ── Filter sheet styles ──────────────────────────────────────────
+const fs = StyleSheet.create({
+  backdrop: { backgroundColor: 'rgba(0,0,0,0.62)' },
+  sheet: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: '#111827',
+    borderTopLeftRadius: 26, borderTopRightRadius: 26,
+  },
+  handle: {
+    width: 38, height: 4, borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignSelf: 'center', marginTop: 10, marginBottom: 20,
+  },
+  groupLabel: { paddingHorizontal: 20, marginBottom: 8 },
+  groupLabelText: {
+    fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.35)',
+    textTransform: 'uppercase', letterSpacing: 1.2,
+  },
+  searchRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginHorizontal: 20, marginBottom: 20,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: Radius.full, paddingHorizontal: 14, paddingVertical: 12,
+  },
+  searchInput: { flex: 1, fontSize: FontSize.sm, color: '#fff' },
+  dateRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    marginHorizontal: 20, marginBottom: 20,
+  },
+  dateChip: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: Radius.full, paddingHorizontal: 14, paddingVertical: 12,
+    borderWidth: 1, borderColor: 'transparent',
+  },
+  dateChipActive: { borderColor: 'rgba(255,255,255,0.3)', backgroundColor: 'rgba(255,255,255,0.12)' },
+  dateChipText: { flex: 1, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.4)' },
+  dateChipTextActive: { color: '#fff', fontWeight: '600' },
+  tagsRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
+    marginHorizontal: 20, marginBottom: 16,
+  },
+  tag: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: Radius.full, paddingHorizontal: 10, paddingVertical: 4,
+  },
+  tagText: { fontSize: FontSize.xs, color: 'rgba(255,255,255,0.7)', fontWeight: '500' },
+  actionRow: {
+    flexDirection: 'row', gap: 10,
+    marginHorizontal: 20,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', paddingTop: 14,
+  },
+  clearBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: Radius.full,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', alignItems: 'center',
+  },
+  clearText: { fontSize: FontSize.sm, fontWeight: '600', color: 'rgba(255,255,255,0.65)' },
+  applyBtn: {
+    flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 14, borderRadius: Radius.full, backgroundColor: '#fff',
+  },
+  applyText: { fontSize: FontSize.sm, fontWeight: '700', color: '#111827' },
+});
+
+// ── Calendar styles ──────────────────────────────────────────────
 const cal = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: {
-    backgroundColor: Colors.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.sm,
-    paddingBottom: 32,
+    backgroundColor: Colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: 32,
   },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.border,
-    alignSelf: 'center',
-    marginBottom: Spacing.md,
-  },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: Spacing.md },
   label: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textSecondary, marginBottom: Spacing.sm },
-  monthRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.md,
-  },
+  monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
   monthText: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text },
-  arrow: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.inputBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayHeaders: {
-    flexDirection: 'row',
-    marginBottom: Spacing.xs,
-  },
-  dayHeader: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: FontSize.xs,
-    fontWeight: '700',
-    color: Colors.textMuted,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  cell: {
-    width: `${100 / 7}%`,
-    aspectRatio: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 100,
-  },
+  arrow: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.inputBg, alignItems: 'center', justifyContent: 'center' },
+  dayHeaders: { flexDirection: 'row', marginBottom: Spacing.xs },
+  dayHeader: { flex: 1, textAlign: 'center', fontSize: FontSize.xs, fontWeight: '700', color: Colors.textMuted },
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  cell: { width: `${100 / 7}%` as any, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 100 },
   cellSel: { backgroundColor: Colors.primary },
   cellText: { fontSize: FontSize.sm, color: Colors.text },
   cellTextSel: { color: Colors.white, fontWeight: '700' },
-  clearRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.xs,
-    marginTop: Spacing.md,
-  },
+  clearRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, marginTop: Spacing.md },
   clearText: { fontSize: FontSize.sm, color: Colors.error, fontWeight: '600' },
 });
