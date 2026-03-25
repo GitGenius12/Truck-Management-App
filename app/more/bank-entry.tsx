@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, StyleSheet, RefreshControl,
   TouchableOpacity, Modal, ScrollView, TextInput,
   KeyboardAvoidingView, Platform, Alert, Switch,
+  Animated, Dimensions, Pressable,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ListSkeleton } from '@/components/Skeleton';
 import { api } from '@/services/api';
@@ -12,6 +13,7 @@ import { ENDPOINTS } from '@/constants/api';
 import { Colors, Spacing, Radius, FontSize } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 
+// ── Types ────────────────────────────────────────────────────────
 interface BankEntry {
   _id: string;
   date: string;
@@ -22,16 +24,21 @@ interface BankEntry {
   amritLogisticsDetails?: { bankName: string; openingBalance: number; closingBalance: number; noOfTransactions: number };
 }
 
+// ── Constants ────────────────────────────────────────────────────
 const ROLE_OPTIONS = [
-  { v: 'all', label: 'All Roles' },
   { v: 'STAFF', label: 'Staff' },
   { v: 'MANAGER', label: 'Manager' },
   { v: 'DIRECTOR', label: 'Director' },
 ];
 
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
+const ACCOUNT_TYPES = [
+  { v: 'sainik', label: 'Sainik Motor' },
+  { v: 'amrit', label: 'Amrit Logistics' },
+  { v: 'both', label: 'Both' },
+];
+
+const { height: SCREEN_H } = Dimensions.get('window');
+const SHEET_H = SCREEN_H * 0.52;
 
 const initialAccountDetails = {
   bankName: '', accountNumber: '',
@@ -42,8 +49,11 @@ const initialAccountDetails = {
   nameOfSecondPerson: '', statementSentWhatsApp: false,
 };
 
-// ── Small helpers ─────────────────────────────────────────────────
+function formatDate(d: string) {
+  return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
+// ── Shared sub-components ────────────────────────────────────────
 function LabeledInput({ label, value, onChangeText, placeholder, keyboardType, multiline }: {
   label: string; value: string; onChangeText: (v: string) => void;
   placeholder?: string; keyboardType?: any; multiline?: boolean;
@@ -68,12 +78,7 @@ function ToggleRow({ label, value, onToggle }: { label: string; value: boolean; 
   return (
     <View style={addStyles.toggleRow}>
       <Text style={addStyles.toggleLabel}>{label}</Text>
-      <Switch
-        value={value}
-        onValueChange={onToggle}
-        trackColor={{ false: Colors.border, true: Colors.primary }}
-        thumbColor={Colors.white}
-      />
+      <Switch value={value} onValueChange={onToggle} trackColor={{ false: Colors.border, true: Colors.primary }} thumbColor={Colors.white} />
     </View>
   );
 }
@@ -86,33 +91,121 @@ function SectionHeader({ title }: { title: string }) {
   );
 }
 
-// ── Add Entry Modal ───────────────────────────────────────────────
+// ── Dark pill ────────────────────────────────────────────────────
+function DarkPill({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <TouchableOpacity onPress={onPress} style={[ds.pill, active && ds.pillActive]} activeOpacity={0.75}>
+      <Text style={[ds.pillText, active && ds.pillTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
 
+// ── Director Filter sheet ────────────────────────────────────────
+function FilterSheet({ visible, onClose, onApply, onClear, hasFilters, startDate, endDate, roleFilter, setStartDate, setEndDate, setRoleFilter }: {
+  visible: boolean; onClose: () => void; onApply: () => void; onClear: () => void;
+  hasFilters: boolean; startDate: string; endDate: string; roleFilter: string;
+  setStartDate: (v: string) => void; setEndDate: (v: string) => void; setRoleFilter: (v: string) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const translateY = useRef(new Animated.Value(SHEET_H)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 180 }),
+        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(translateY, { toValue: SHEET_H, duration: 250, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible]);
+
+  return (
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
+        <Animated.View style={[StyleSheet.absoluteFill, ds.backdrop, { opacity }]} />
+      </Pressable>
+
+      <Animated.View
+        style={[ds.sheet, { height: SHEET_H, paddingBottom: insets.bottom + 16, transform: [{ translateY }] }]}
+        pointerEvents="box-none"
+      >
+        <View style={ds.handle} />
+
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={ds.sheetScroll}>
+          <Text style={ds.groupLabel}>Start Date</Text>
+          <View style={ds.inputRow}>
+            <TextInput
+              style={ds.sheetInput}
+              value={startDate}
+              onChangeText={setStartDate}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+            />
+          </View>
+
+          <Text style={ds.groupLabel}>End Date</Text>
+          <View style={ds.inputRow}>
+            <TextInput
+              style={ds.sheetInput}
+              value={endDate}
+              onChangeText={setEndDate}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+            />
+          </View>
+
+          <Text style={ds.groupLabel}>Role</Text>
+          <View style={ds.pillWrap}>
+            {ROLE_OPTIONS.map(o => (
+              <DarkPill
+                key={o.v}
+                label={o.label}
+                active={roleFilter === o.v}
+                onPress={() => setRoleFilter(roleFilter === o.v ? 'all' : o.v)}
+              />
+            ))}
+          </View>
+        </ScrollView>
+
+        <View style={ds.actionRow}>
+          {hasFilters && (
+            <TouchableOpacity style={ds.clearBtn} onPress={onClear}>
+              <Text style={ds.clearBtnText}>Clear all</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={ds.applyBtn} onPress={onApply}>
+            <Text style={ds.applyBtnText}>Apply filters</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    </Modal>
+  );
+}
+
+// ── Add Entry Modal ──────────────────────────────────────────────
 function AddEntryModal({ visible, onClose, onSuccess }: {
   visible: boolean; onClose: () => void; onSuccess: () => void;
 }) {
   const [saving, setSaving] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
-  const [accountType, setAccountType] = useState('both'); // 'sainik' | 'amrit' | 'both'
+  const [accountType, setAccountType] = useState('both');
   const [sainik, setSainik] = useState({ ...initialAccountDetails });
   const [amrit, setAmrit] = useState({ ...initialAccountDetails });
 
   function reset() {
-    setSaving(false);
-    setLoggedIn(false);
-    setAccountType('both');
-    setSainik({ ...initialAccountDetails });
-    setAmrit({ ...initialAccountDetails });
+    setSaving(false); setLoggedIn(false); setAccountType('both');
+    setSainik({ ...initialAccountDetails }); setAmrit({ ...initialAccountDetails });
   }
 
   async function handleSubmit() {
     setSaving(true);
     try {
-      const body: any = {
-        loggedIntoNetBanking: loggedIn,
-        accountType,
-      };
-
+      const body: any = { loggedIntoNetBanking: loggedIn, accountType };
       if (accountType === 'sainik' || accountType === 'both') {
         body.sainikMotorDetails = {
           ...sainik,
@@ -120,11 +213,8 @@ function AddEntryModal({ visible, onClose, onSuccess }: {
           closingBalance: parseFloat(sainik.closingBalance) || 0,
           noOfTransactions: parseInt(sainik.noOfTransactions) || 0,
           amountOfEachTransaction: parseFloat(sainik.amountOfEachTransaction) || 0,
-          fourEyeVerification: sainik.fourEyeVerification,
-          statementSentWhatsApp: sainik.statementSentWhatsApp,
         };
       }
-
       if (accountType === 'amrit' || accountType === 'both') {
         body.amritLogisticsDetails = {
           ...amrit,
@@ -132,15 +222,10 @@ function AddEntryModal({ visible, onClose, onSuccess }: {
           closingBalance: parseFloat(amrit.closingBalance) || 0,
           noOfTransactions: parseInt(amrit.noOfTransactions) || 0,
           amountOfEachTransaction: parseFloat(amrit.amountOfEachTransaction) || 0,
-          fourEyeVerification: amrit.fourEyeVerification,
-          statementSentWhatsApp: amrit.statementSentWhatsApp,
         };
       }
-
       await api.post(ENDPOINTS.BANK_ENTRIES, body);
-      reset();
-      onSuccess();
-      onClose();
+      reset(); onSuccess(); onClose();
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Failed to save entry');
     } finally {
@@ -148,19 +233,9 @@ function AddEntryModal({ visible, onClose, onSuccess }: {
     }
   }
 
-  const ACCOUNT_TYPES = [
-    { v: 'sainik', label: 'Sainik Motor' },
-    { v: 'amrit', label: 'Amrit Logistics' },
-    { v: 'both', label: 'Both' },
-  ];
-
   function AccountFields({ state, setState }: { state: typeof initialAccountDetails; setState: (v: any) => void }) {
-    function f(key: keyof typeof initialAccountDetails) {
-      return (val: string) => setState((prev: any) => ({ ...prev, [key]: val }));
-    }
-    function ft(key: keyof typeof initialAccountDetails) {
-      return (val: boolean) => setState((prev: any) => ({ ...prev, [key]: val }));
-    }
+    const f = (key: keyof typeof initialAccountDetails) => (val: string) => setState((p: any) => ({ ...p, [key]: val }));
+    const ft = (key: keyof typeof initialAccountDetails) => (val: boolean) => setState((p: any) => ({ ...p, [key]: val }));
     return (
       <>
         <LabeledInput label="Bank Name" value={state.bankName} onChangeText={f('bankName')} />
@@ -185,7 +260,6 @@ function AddEntryModal({ visible, onClose, onSuccess }: {
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['top', 'bottom']}>
-          {/* Modal header */}
           <View style={addStyles.modalHeader}>
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={24} color={Colors.text} />
@@ -197,11 +271,9 @@ function AddEntryModal({ visible, onClose, onSuccess }: {
           </View>
 
           <ScrollView contentContainerStyle={addStyles.form} keyboardShouldPersistTaps="handled">
-            {/* Net Banking toggle */}
             <SectionHeader title="Login Info" />
             <ToggleRow label="Logged into Net Banking" value={loggedIn} onToggle={setLoggedIn} />
 
-            {/* Account Type */}
             <SectionHeader title="Account Type" />
             <View style={addStyles.pillRow}>
               {ACCOUNT_TYPES.map(t => (
@@ -215,22 +287,18 @@ function AddEntryModal({ visible, onClose, onSuccess }: {
               ))}
             </View>
 
-            {/* Sainik Motor fields */}
             {(accountType === 'sainik' || accountType === 'both') && (
               <>
                 <SectionHeader title="Sainik Motor" />
                 <AccountFields state={sainik} setState={setSainik} />
               </>
             )}
-
-            {/* Amrit Logistics fields */}
             {(accountType === 'amrit' || accountType === 'both') && (
               <>
                 <SectionHeader title="Amrit Logistics" />
                 <AccountFields state={amrit} setState={setAmrit} />
               </>
             )}
-
             <View style={{ height: 40 }} />
           </ScrollView>
         </SafeAreaView>
@@ -239,113 +307,80 @@ function AddEntryModal({ visible, onClose, onSuccess }: {
   );
 }
 
-// ── Main screen ───────────────────────────────────────────────────
-
+// ── Main screen ──────────────────────────────────────────────────
 export default function BankEntryScreen() {
   const { user } = useAuth();
-  const role = user?.role;
-  const isDirector = role === 'DIRECTOR';
+  const isDirector = user?.role === 'DIRECTOR';
 
   const [entries, setEntries] = useState<BankEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
-  // Director filters
-  const [showFilters, setShowFilters] = useState(false);
+  // Director filter state (draft in sheet)
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
-  const [appliedFilters, setAppliedFilters] = useState({ startDate: '', endDate: '', roleFilter: 'all' });
+  // Applied filters
+  const [applied, setApplied] = useState({ startDate: '', endDate: '', roleFilter: 'all' });
 
-  const hasFilters = appliedFilters.startDate || appliedFilters.endDate || appliedFilters.roleFilter !== 'all';
+  const hasFilters = applied.startDate !== '' || applied.endDate !== '' || applied.roleFilter !== 'all';
 
-  const load = useCallback(async (filters = appliedFilters) => {
+  const load = useCallback(async (f = applied) => {
     try {
       const params: string[] = [];
-      if (filters.startDate) params.push(`startDate=${encodeURIComponent(filters.startDate)}`);
-      if (filters.endDate) params.push(`endDate=${encodeURIComponent(filters.endDate)}`);
-      if (filters.roleFilter !== 'all') params.push(`role=${encodeURIComponent(filters.roleFilter)}`);
+      if (f.startDate) params.push(`startDate=${encodeURIComponent(f.startDate)}`);
+      if (f.endDate) params.push(`endDate=${encodeURIComponent(f.endDate)}`);
+      if (f.roleFilter !== 'all') params.push(`role=${encodeURIComponent(f.roleFilter)}`);
       const q = params.length ? `?${params.join('&')}` : '';
       const data = await api.get<any>(`${ENDPOINTS.BANK_ENTRIES}${q}`);
       setEntries(Array.isArray(data) ? data : (data.entries ?? data.bankEntries ?? []));
     } catch { }
     finally { setLoading(false); setRefreshing(false); }
-  }, [appliedFilters]);
+  }, [applied]);
 
   useEffect(() => { load(); }, []);
 
   function applyFilters() {
     const f = { startDate, endDate, roleFilter };
-    setAppliedFilters(f);
+    setApplied(f);
     setLoading(true);
     load(f);
-    setShowFilters(false);
+    setSheetOpen(false);
   }
 
   function clearFilters() {
     const f = { startDate: '', endDate: '', roleFilter: 'all' };
     setStartDate(''); setEndDate(''); setRoleFilter('all');
-    setAppliedFilters(f);
+    setApplied(f);
     setLoading(true);
     load(f);
+    setSheetOpen(false);
+  }
+
+  function openSheet() {
+    // sync draft with applied
+    setStartDate(applied.startDate);
+    setEndDate(applied.endDate);
+    setRoleFilter(applied.roleFilter);
+    setSheetOpen(true);
   }
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      {/* ── Header bar (Director filter toggle) ── */}
-      {isDirector && (
-        <View style={styles.headerBar}>
-          <Text style={styles.headerTitle}>Bank Entries</Text>
-          <TouchableOpacity onPress={() => setShowFilters(v => !v)} style={[styles.filterBtn, showFilters && styles.filterBtnActive]}>
-            <Ionicons name="options-outline" size={18} color={showFilters ? Colors.white : Colors.primary} />
-            <Text style={[styles.filterBtnText, showFilters && { color: Colors.white }]}>Filter</Text>
-            {!!hasFilters && <View style={styles.filterDot} />}
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* ── Director filter panel ── */}
-      {isDirector && showFilters && (
-        <View style={styles.filterPanel}>
-          <Text style={styles.filterLabel}>Start Date</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={Colors.textMuted}
-            value={startDate}
-            onChangeText={setStartDate}
-          />
-          <Text style={styles.filterLabel}>End Date</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={Colors.textMuted}
-            value={endDate}
-            onChangeText={setEndDate}
-          />
-          <Text style={styles.filterLabel}>Role</Text>
-          <View style={styles.pillRow}>
-            {ROLE_OPTIONS.map(o => (
-              <TouchableOpacity
-                key={o.v}
-                onPress={() => setRoleFilter(o.v)}
-                style={[styles.pill, roleFilter === o.v && styles.pillActive]}
-              >
-                <Text style={[styles.pillText, roleFilter === o.v && styles.pillTextActive]}>{o.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <View style={styles.filterActions}>
-            {!!hasFilters && (
-              <TouchableOpacity onPress={clearFilters} style={styles.clearBtn}>
-                <Text style={styles.clearBtnText}>Clear</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={applyFilters} style={styles.applyBtn}>
-              <Text style={styles.applyBtnText}>Apply</Text>
+      {/* Count bar with clear for Director */}
+      {isDirector && !loading && (
+        <View style={styles.countBar}>
+          <Text style={styles.countText}>
+            {entries.length} entr{entries.length !== 1 ? 'ies' : 'y'}
+            {hasFilters ? <Text style={styles.countFiltered}> · filtered</Text> : null}
+          </Text>
+          {hasFilters && (
+            <TouchableOpacity onPress={clearFilters}>
+              <Text style={styles.clearLink}>Clear filters</Text>
             </TouchableOpacity>
-          </View>
+          )}
         </View>
       )}
 
@@ -387,29 +422,48 @@ export default function BankEntryScreen() {
                   <Text style={styles.typeText}>{item.accountType}</Text>
                 </View>
               )}
-              {item.sainikMotorDetails && (
-                <AccountRow label="Sainik Motor" details={item.sainikMotorDetails} />
-              )}
-              {item.amritLogisticsDetails && (
-                <AccountRow label="Amrit Logistics" details={item.amritLogisticsDetails} />
-              )}
+              {item.sainikMotorDetails && <AccountRow label="Sainik Motor" details={item.sainikMotorDetails} />}
+              {item.amritLogisticsDetails && <AccountRow label="Amrit Logistics" details={item.amritLogisticsDetails} />}
             </View>
           )}
         />
       )}
 
-      {/* ── FAB for Staff / Manager ── */}
-      {!isDirector && (
-        <TouchableOpacity style={styles.fab} onPress={() => setShowAddModal(true)}>
-          <Ionicons name="add" size={28} color={Colors.white} />
-        </TouchableOpacity>
+      {/* FAB — Staff/Manager: add entry; Director: filter */}
+      <TouchableOpacity
+        style={[styles.fab, hasFilters && styles.fabActive]}
+        onPress={isDirector ? openSheet : () => setShowAddModal(true)}
+        activeOpacity={0.85}
+      >
+        <Ionicons name={isDirector ? 'options-outline' : 'add'} size={isDirector ? 22 : 28} color={Colors.white} />
+        {isDirector && hasFilters && <View style={styles.filterDot} />}
+      </TouchableOpacity>
+
+      {/* Director filter sheet */}
+      {isDirector && (
+        <FilterSheet
+          visible={sheetOpen}
+          onClose={() => setSheetOpen(false)}
+          onApply={applyFilters}
+          onClear={clearFilters}
+          hasFilters={hasFilters}
+          startDate={startDate}
+          endDate={endDate}
+          roleFilter={roleFilter}
+          setStartDate={setStartDate}
+          setEndDate={setEndDate}
+          setRoleFilter={setRoleFilter}
+        />
       )}
 
-      <AddEntryModal
-        visible={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onSuccess={() => { setLoading(true); load(); }}
-      />
+      {/* Staff/Manager add entry modal */}
+      {!isDirector && (
+        <AddEntryModal
+          visible={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          onSuccess={() => { setLoading(true); load(); }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -436,60 +490,22 @@ function StatChip({ label, value }: { label: string; value: string }) {
   );
 }
 
+// ── Styles ───────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-
-  headerBar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  countBar: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm,
     backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  headerTitle: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text },
-  filterBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: Spacing.sm, paddingVertical: 6,
-    borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.primary,
-  },
-  filterBtnActive: { backgroundColor: Colors.primary },
-  filterBtnText: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.primary },
-  filterDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.error, marginLeft: 2 },
-
-  filterPanel: {
-    backgroundColor: Colors.white, padding: Spacing.md,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
-  },
-  filterLabel: { fontSize: FontSize.xs, fontWeight: '600', color: Colors.textSecondary, marginBottom: 4, textTransform: 'uppercase' },
-  input: {
-    backgroundColor: Colors.inputBg, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 10,
-    fontSize: FontSize.sm, color: Colors.text, marginBottom: Spacing.sm,
-  },
-  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginBottom: Spacing.sm },
-  pill: {
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.full,
-    borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white,
-  },
-  pillActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  pillText: { fontSize: FontSize.xs, fontWeight: '600', color: Colors.textSecondary },
-  pillTextActive: { color: Colors.white },
-  filterActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
-  clearBtn: {
-    flex: 1, paddingVertical: 10, borderRadius: Radius.sm,
-    borderWidth: 1, borderColor: Colors.border, alignItems: 'center',
-  },
-  clearBtnText: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textSecondary },
-  applyBtn: {
-    flex: 2, paddingVertical: 10, borderRadius: Radius.sm,
-    backgroundColor: Colors.primary, alignItems: 'center',
-  },
-  applyBtnText: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.white },
-
-  list: { padding: Spacing.lg, paddingBottom: 120 },
+  countText: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  countFiltered: { color: Colors.primary, fontWeight: '600' },
+  clearLink: { fontSize: FontSize.sm, color: Colors.error, fontWeight: '600' },
+  list: { padding: Spacing.lg, paddingBottom: 130 },
   empty: { alignItems: 'center', paddingTop: 60, gap: Spacing.sm },
   emptyText: { fontSize: FontSize.md, color: Colors.textMuted },
   addFirstBtn: { marginTop: Spacing.xs, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, backgroundColor: Colors.primary, borderRadius: Radius.full },
   addFirstBtnText: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.white },
-
   card: {
     backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md,
     marginBottom: Spacing.sm, shadowColor: Colors.shadow,
@@ -508,13 +524,63 @@ const styles = StyleSheet.create({
   statChip: { flex: 1, backgroundColor: Colors.tealBg, borderRadius: Radius.sm, padding: Spacing.sm, alignItems: 'center' },
   statLabel: { fontSize: FontSize.xs, color: Colors.textSecondary },
   statValue: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.text, marginTop: 2 },
-
   fab: {
-    position: 'absolute', right: Spacing.lg, bottom: 100,
+    position: 'absolute', bottom: 100, alignSelf: 'center',
+    left: '50%', marginLeft: -28,
     width: 56, height: 56, borderRadius: 28,
-    backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
-    shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 8, elevation: 6,
+    backgroundColor: '#111827',
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 8,
   },
+  fabActive: { backgroundColor: Colors.primary },
+  filterDot: {
+    position: 'absolute', top: 10, right: 10,
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: Colors.error, borderWidth: 1.5, borderColor: Colors.white,
+  },
+});
+
+const ds = StyleSheet.create({
+  backdrop: { backgroundColor: 'rgba(0,0,0,0.6)' },
+  sheet: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: '#111827',
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    overflow: 'hidden',
+  },
+  handle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignSelf: 'center', marginTop: 12, marginBottom: 4,
+  },
+  sheetScroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
+  groupLabel: {
+    fontSize: FontSize.xs, fontWeight: '700',
+    color: 'rgba(255,255,255,0.4)',
+    textTransform: 'uppercase', letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  inputRow: {
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: Radius.full,
+    paddingHorizontal: 14, paddingVertical: 10,
+    marginBottom: 16,
+  },
+  sheetInput: { fontSize: FontSize.sm, color: Colors.white },
+  pillWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  pill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.full, backgroundColor: 'rgba(255,255,255,0.1)' },
+  pillActive: { backgroundColor: Colors.white },
+  pillText: { fontSize: FontSize.sm, fontWeight: '600', color: 'rgba(255,255,255,0.85)' },
+  pillTextActive: { color: '#111827' },
+  actionRow: {
+    flexDirection: 'row', gap: 10,
+    paddingHorizontal: 20, paddingTop: 10,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)',
+  },
+  clearBtn: { flex: 1, paddingVertical: 13, borderRadius: Radius.full, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', alignItems: 'center' },
+  clearBtnText: { fontSize: FontSize.sm, fontWeight: '600', color: 'rgba(255,255,255,0.7)' },
+  applyBtn: { flex: 2, paddingVertical: 13, borderRadius: Radius.full, backgroundColor: Colors.white, alignItems: 'center' },
+  applyBtnText: { fontSize: FontSize.sm, fontWeight: '700', color: '#111827' },
 });
 
 const addStyles = StyleSheet.create({
@@ -527,29 +593,18 @@ const addStyles = StyleSheet.create({
   saveBtn: { paddingHorizontal: Spacing.md, paddingVertical: 6, backgroundColor: Colors.primary, borderRadius: Radius.sm },
   saveBtnText: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.white },
   form: { padding: Spacing.lg, paddingBottom: 40 },
-
-  sectionHeader: {
-    backgroundColor: Colors.tealBg, paddingHorizontal: Spacing.sm, paddingVertical: 6,
-    borderRadius: Radius.sm, marginBottom: Spacing.sm, marginTop: Spacing.sm,
-  },
+  sectionHeader: { backgroundColor: Colors.tealBg, paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: Radius.sm, marginBottom: Spacing.sm, marginTop: Spacing.sm },
   sectionTitle: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.primary },
-
   label: { fontSize: FontSize.xs, fontWeight: '600', color: Colors.textSecondary, marginBottom: 4 },
   input: {
     backgroundColor: Colors.inputBg, borderWidth: 1, borderColor: Colors.border,
     borderRadius: Radius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 10,
     fontSize: FontSize.sm, color: Colors.text,
   },
-  toggleRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: Spacing.sm, paddingVertical: 4,
-  },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm, paddingVertical: 4 },
   toggleLabel: { fontSize: FontSize.sm, color: Colors.text, fontWeight: '500' },
   pillRow: { flexDirection: 'row', gap: Spacing.xs, marginBottom: Spacing.md },
-  pill: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.full,
-    borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white,
-  },
+  pill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white },
   pillActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   pillText: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textSecondary },
   pillTextActive: { color: Colors.white },

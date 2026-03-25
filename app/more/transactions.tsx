@@ -1,15 +1,17 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, StyleSheet, RefreshControl,
-  TextInput, TouchableOpacity, ScrollView,
+  TextInput, TouchableOpacity, Modal, Animated,
+  Dimensions, ScrollView, Pressable,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ListSkeleton } from '@/components/Skeleton';
 import { api } from '@/services/api';
 import { ENDPOINTS } from '@/constants/api';
 import { Colors, Spacing, Radius, FontSize } from '@/constants/theme';
 
+// ── Types ────────────────────────────────────────────────────────
 interface Transaction {
   _id: string;
   driverId?: { name: string; phone?: string };
@@ -27,28 +29,21 @@ interface Transaction {
   bankName?: string;
 }
 
-const MONTHS = [
-  { v: '', label: 'All Months' },
-  { v: '1', label: 'January' }, { v: '2', label: 'February' },
-  { v: '3', label: 'March' }, { v: '4', label: 'April' },
-  { v: '5', label: 'May' }, { v: '6', label: 'June' },
-  { v: '7', label: 'July' }, { v: '8', label: 'August' },
-  { v: '9', label: 'September' }, { v: '10', label: 'October' },
-  { v: '11', label: 'November' }, { v: '12', label: 'December' },
-];
-
+// ── Constants ────────────────────────────────────────────────────
 const MONTH_LABELS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
+const MONTHS = [
+  { v: '1', label: 'Jan' }, { v: '2', label: 'Feb' }, { v: '3', label: 'Mar' },
+  { v: '4', label: 'Apr' }, { v: '5', label: 'May' }, { v: '6', label: 'Jun' },
+  { v: '7', label: 'Jul' }, { v: '8', label: 'Aug' }, { v: '9', label: 'Sep' },
+  { v: '10', label: 'Oct' }, { v: '11', label: 'Nov' }, { v: '12', label: 'Dec' },
+];
 const STATUSES = [
-  { v: '', label: 'All Statuses' },
   { v: 'PENDING', label: 'Pending' },
   { v: 'PARTIAL', label: 'Partial' },
   { v: 'PAID', label: 'Paid' },
 ];
-
 const TYPES = [
-  { v: '', label: 'All Types' },
-  { v: 'false', label: 'Driver Salaries' },
+  { v: 'false', label: 'Salaries' },
   { v: 'true', label: 'Misc Spends' },
 ];
 
@@ -58,6 +53,9 @@ const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
   PENDING: { bg: Colors.errorBg, text: Colors.error },
 };
 
+const { height: SCREEN_H } = Dimensions.get('window');
+const SHEET_H = SCREEN_H * 0.62;
+
 function buildQuery(params: Record<string, string>) {
   const q = Object.entries(params)
     .filter(([, v]) => v !== '')
@@ -66,59 +64,171 @@ function buildQuery(params: Record<string, string>) {
   return q ? `?${q}` : '';
 }
 
-// ── Simple inline picker pill row ────────────────────────────────
-function PillRow({ options, value, onChange }: {
-  options: { v: string; label: string }[];
-  value: string;
-  onChange: (v: string) => void;
-}) {
+// ── Dark pill chip ───────────────────────────────────────────────
+function DarkPill({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.sm }}>
-      <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
-        {options.map(o => (
-          <TouchableOpacity
-            key={o.v}
-            onPress={() => onChange(o.v)}
-            style={[styles.pill, value === o.v && styles.pillActive]}
-          >
-            <Text style={[styles.pillText, value === o.v && styles.pillTextActive]}>{o.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </ScrollView>
+    <TouchableOpacity
+      onPress={onPress}
+      style={[ds.pill, active && ds.pillActive]}
+      activeOpacity={0.75}
+    >
+      <Text style={[ds.pillText, active && ds.pillTextActive]}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
+// ── Filter bottom-sheet ──────────────────────────────────────────
+function FilterSheet({ visible, onClose, onApply, onClear, hasFilters, filters, setFilters }: {
+  visible: boolean;
+  onClose: () => void;
+  onApply: () => void;
+  onClear: () => void;
+  hasFilters: boolean;
+  filters: { search: string; month: string; year: string; status: string; type: string; bank: string };
+  setFilters: (f: any) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const translateY = useRef(new Animated.Value(SHEET_H)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 180 }),
+        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(translateY, { toValue: SHEET_H, duration: 250, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible]);
+
+  function set(key: string, val: string) {
+    setFilters((prev: any) => ({ ...prev, [key]: prev[key] === val ? '' : val }));
+  }
+
+  if (!visible && !opacity) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      {/* Backdrop */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
+        <Animated.View style={[StyleSheet.absoluteFill, ds.backdrop, { opacity }]} />
+      </Pressable>
+
+      {/* Sheet */}
+      <Animated.View
+        style={[ds.sheet, { height: SHEET_H, paddingBottom: insets.bottom + 16, transform: [{ translateY }] }]}
+        pointerEvents="box-none"
+      >
+        {/* Handle */}
+        <View style={ds.handle} />
+
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={ds.sheetScroll}>
+          {/* Search */}
+          <View style={ds.searchRow}>
+            <Ionicons name="search-outline" size={16} color="rgba(255,255,255,0.5)" style={{ marginRight: 8 }} />
+            <TextInput
+              style={ds.searchInput}
+              value={filters.search}
+              onChangeText={v => setFilters((p: any) => ({ ...p, search: v }))}
+              placeholder="Driver name or phone…"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              returnKeyType="done"
+            />
+            {!!filters.search && (
+              <TouchableOpacity onPress={() => setFilters((p: any) => ({ ...p, search: '' }))}>
+                <Ionicons name="close-circle" size={16} color="rgba(255,255,255,0.4)" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Month */}
+          <Text style={ds.groupLabel}>Month</Text>
+          <View style={ds.pillWrap}>
+            {MONTHS.map(m => (
+              <DarkPill key={m.v} label={m.label} active={filters.month === m.v} onPress={() => set('month', m.v)} />
+            ))}
+          </View>
+
+          {/* Year */}
+          <Text style={ds.groupLabel}>Year</Text>
+          <View style={ds.searchRow}>
+            <TextInput
+              style={[ds.searchInput, { flex: 1 }]}
+              value={filters.year}
+              onChangeText={v => setFilters((p: any) => ({ ...p, year: v }))}
+              placeholder={`e.g. ${new Date().getFullYear()}`}
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              keyboardType="number-pad"
+              returnKeyType="done"
+            />
+          </View>
+
+          {/* Status */}
+          <Text style={ds.groupLabel}>Status</Text>
+          <View style={ds.pillWrap}>
+            {STATUSES.map(s => (
+              <DarkPill key={s.v} label={s.label} active={filters.status === s.v} onPress={() => set('status', s.v)} />
+            ))}
+          </View>
+
+          {/* Type */}
+          <Text style={ds.groupLabel}>Type</Text>
+          <View style={ds.pillWrap}>
+            {TYPES.map(t => (
+              <DarkPill key={t.v} label={t.label} active={filters.type === t.v} onPress={() => set('type', t.v)} />
+            ))}
+          </View>
+
+          {/* Bank */}
+          <Text style={ds.groupLabel}>Bank</Text>
+          <View style={ds.searchRow}>
+            <TextInput
+              style={[ds.searchInput, { flex: 1 }]}
+              value={filters.bank}
+              onChangeText={v => setFilters((p: any) => ({ ...p, bank: v }))}
+              placeholder="e.g. HDFC"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              returnKeyType="done"
+            />
+          </View>
+        </ScrollView>
+
+        {/* Action row */}
+        <View style={ds.actionRow}>
+          {hasFilters && (
+            <TouchableOpacity style={ds.clearBtn} onPress={onClear}>
+              <Text style={ds.clearBtnText}>Clear all</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={ds.applyBtn} onPress={onApply}>
+            <Text style={ds.applyBtnText}>Apply filters</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    </Modal>
+  );
+}
+
+// ── Main screen ──────────────────────────────────────────────────
 export default function TransactionsScreen() {
   const [txns, setTxns] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
-  // filter state
-  const [search, setSearch] = useState('');
-  const [month, setMonth] = useState('');
-  const [year, setYear] = useState('');
-  const [status, setStatus] = useState('');
-  const [type, setType] = useState('');
-  const [bank, setBank] = useState('');
-
-  // applied filters (used for fetch)
+  const [filters, setFilters] = useState({ search: '', month: '', year: '', status: '', type: '', bank: '' });
   const [applied, setApplied] = useState({ search: '', month: '', year: '', status: '', type: '', bank: '' });
 
-  const hasFilters = applied.search || applied.month || applied.year || applied.status || applied.type || applied.bank;
+  const hasFilters = Object.values(applied).some(v => v !== '');
 
-  const load = useCallback(async (filters = applied) => {
+  const load = useCallback(async (f = applied) => {
     try {
-      const q = buildQuery({
-        search: filters.search,
-        month: filters.month,
-        year: filters.year,
-        paymentStatus: filters.status,
-        isMiscellaneous: filters.type,
-        bank: filters.bank,
-      });
+      const q = buildQuery({ search: f.search, month: f.month, year: f.year, paymentStatus: f.status, isMiscellaneous: f.type, bank: f.bank });
       const data = await api.get<any>(`${ENDPOINTS.DRIVER_TRANSACTIONS}${q}`);
       setTxns(Array.isArray(data) ? data : (data.transactions ?? []));
       setTotal(data.totalTransactions ?? (Array.isArray(data) ? data.length : 0));
@@ -129,82 +239,40 @@ export default function TransactionsScreen() {
   useEffect(() => { load(); }, []);
 
   function applyFilters() {
-    const f = { search, month, year, status, type, bank };
-    setApplied(f);
+    setApplied({ ...filters });
     setLoading(true);
-    load(f);
-    setShowFilters(false);
+    load({ ...filters });
+    setSheetOpen(false);
   }
 
   function clearFilters() {
     const empty = { search: '', month: '', year: '', status: '', type: '', bank: '' };
-    setSearch(''); setMonth(''); setYear(''); setStatus(''); setType(''); setBank('');
+    setFilters(empty);
     setApplied(empty);
     setLoading(true);
     load(empty);
+    setSheetOpen(false);
+  }
+
+  function openSheet() {
+    setFilters({ ...applied }); // sync sheet state with applied
+    setSheetOpen(true);
   }
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      {/* ── Header bar ── */}
-      <View style={styles.headerBar}>
-        <Text style={styles.headerTitle}>
-          All Transactions{total > 0 ? <Text style={styles.headerCount}> · {total}</Text> : null}
-        </Text>
-        <TouchableOpacity onPress={() => setShowFilters(v => !v)} style={[styles.filterBtn, showFilters && styles.filterBtnActive]}>
-          <Ionicons name="options-outline" size={18} color={showFilters ? Colors.white : Colors.primary} />
-          <Text style={[styles.filterBtnText, showFilters && { color: Colors.white }]}>Filter</Text>
-          {!!hasFilters && <View style={styles.filterDot} />}
-        </TouchableOpacity>
-      </View>
-
-      {/* ── Filter Panel ── */}
-      {showFilters && (
-        <View style={styles.filterPanel}>
-          <TextInput
-            style={styles.input}
-            placeholder="Search driver name / phone…"
-            placeholderTextColor={Colors.textMuted}
-            value={search}
-            onChangeText={setSearch}
-          />
-
-          <Text style={styles.filterLabel}>Month</Text>
-          <PillRow options={MONTHS} value={month} onChange={setMonth} />
-
-          <TextInput
-            style={styles.input}
-            placeholder={`Year (e.g. ${new Date().getFullYear()})`}
-            placeholderTextColor={Colors.textMuted}
-            value={year}
-            onChangeText={setYear}
-            keyboardType="number-pad"
-          />
-
-          <Text style={styles.filterLabel}>Status</Text>
-          <PillRow options={STATUSES} value={status} onChange={setStatus} />
-
-          <Text style={styles.filterLabel}>Type</Text>
-          <PillRow options={TYPES} value={type} onChange={setType} />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Bank (e.g. HDFC)"
-            placeholderTextColor={Colors.textMuted}
-            value={bank}
-            onChangeText={setBank}
-          />
-
-          <View style={styles.filterActions}>
-            {!!hasFilters && (
-              <TouchableOpacity onPress={clearFilters} style={styles.clearBtn}>
-                <Text style={styles.clearBtnText}>Clear</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={applyFilters} style={styles.applyBtn}>
-              <Text style={styles.applyBtnText}>Apply</Text>
+      {/* Record count bar */}
+      {!loading && (
+        <View style={styles.countBar}>
+          <Text style={styles.countText}>
+            {total} transaction{total !== 1 ? 's' : ''}
+            {hasFilters ? <Text style={styles.countFiltered}> · filtered</Text> : null}
+          </Text>
+          {hasFilters && (
+            <TouchableOpacity onPress={clearFilters}>
+              <Text style={styles.clearLink}>Clear filters</Text>
             </TouchableOpacity>
-          </View>
+          )}
         </View>
       )}
 
@@ -219,10 +287,10 @@ export default function TransactionsScreen() {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="cash-outline" size={48} color={Colors.textMuted} />
-              <Text style={styles.emptyText}>No transactions found{hasFilters ? ' for selected filters' : ''}</Text>
-              {!!hasFilters && (
-                <TouchableOpacity onPress={clearFilters} style={styles.clearLink}>
-                  <Text style={styles.clearLinkText}>Clear filters</Text>
+              <Text style={styles.emptyText}>No transactions found</Text>
+              {hasFilters && (
+                <TouchableOpacity onPress={clearFilters} style={{ marginTop: Spacing.sm }}>
+                  <Text style={styles.clearLink}>Clear filters</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -234,26 +302,21 @@ export default function TransactionsScreen() {
                 <View style={styles.cardTop}>
                   <View style={{ flex: 1, marginRight: Spacing.sm }}>
                     {item.isMiscellaneous && (
-                      <View style={styles.miscBadge}>
-                        <Text style={styles.miscBadgeText}>MISC</Text>
-                      </View>
+                      <View style={styles.miscBadge}><Text style={styles.miscBadgeText}>MISC</Text></View>
                     )}
                     <Text style={styles.driverName} numberOfLines={1}>
                       {item.isMiscellaneous ? (item.miscellaneousReason ?? 'Misc Spend') : (item.driverId?.name ?? 'Unknown')}
                     </Text>
-                    {item.isMiscellaneous
-                      ? null
-                      : <Text style={styles.sub}>
-                          {item.month ? MONTH_LABELS[item.month] : ''} {item.year}
-                          {item.presentDays != null ? ` · ${item.presentDays}/${item.totalDays} days` : ''}
-                        </Text>
-                    }
+                    {!item.isMiscellaneous && (
+                      <Text style={styles.sub}>
+                        {item.month ? MONTH_LABELS[item.month] : ''} {item.year}
+                        {item.presentDays != null ? ` · ${item.presentDays}/${item.totalDays} days` : ''}
+                      </Text>
+                    )}
                     {item.bankName ? <Text style={styles.sub}>🏦 {item.bankName}</Text> : null}
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-                    <Text style={[styles.statusText, { color: statusStyle.text }]}>
-                      {item.paymentStatus ?? 'PENDING'}
-                    </Text>
+                    <Text style={[styles.statusText, { color: statusStyle.text }]}>{item.paymentStatus ?? 'PENDING'}</Text>
                   </View>
                 </View>
                 <View style={styles.amtRow}>
@@ -277,67 +340,40 @@ export default function TransactionsScreen() {
           }}
         />
       )}
+
+      {/* ── Floating filter button ── */}
+      <TouchableOpacity style={[styles.filterFab, hasFilters && styles.filterFabActive]} onPress={openSheet} activeOpacity={0.85}>
+        <Ionicons name="options-outline" size={22} color={Colors.white} />
+        {hasFilters && <View style={styles.filterDot} />}
+      </TouchableOpacity>
+
+      <FilterSheet
+        visible={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        onApply={applyFilters}
+        onClear={clearFilters}
+        hasFilters={hasFilters}
+        filters={filters}
+        setFilters={setFilters}
+      />
     </SafeAreaView>
   );
 }
 
+// ── Screen styles ────────────────────────────────────────────────
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-
-  headerBar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  countBar: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm,
     backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  headerTitle: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text },
-  headerCount: { fontSize: FontSize.sm, fontWeight: '400', color: Colors.textSecondary },
-  filterBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: Spacing.sm, paddingVertical: 6,
-    borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.primary,
-  },
-  filterBtnActive: { backgroundColor: Colors.primary },
-  filterBtnText: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.primary },
-  filterDot: {
-    width: 6, height: 6, borderRadius: 3,
-    backgroundColor: Colors.error, marginLeft: 2,
-  },
-
-  filterPanel: {
-    backgroundColor: Colors.white, padding: Spacing.md,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
-  },
-  filterLabel: { fontSize: FontSize.xs, fontWeight: '600', color: Colors.textSecondary, marginBottom: 4, textTransform: 'uppercase' },
-  input: {
-    backgroundColor: Colors.inputBg, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 10,
-    fontSize: FontSize.sm, color: Colors.text, marginBottom: Spacing.sm,
-  },
-  pill: {
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.full,
-    borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white,
-  },
-  pillActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  pillText: { fontSize: FontSize.xs, fontWeight: '600', color: Colors.textSecondary },
-  pillTextActive: { color: Colors.white },
-  filterActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
-  clearBtn: {
-    flex: 1, paddingVertical: 10, borderRadius: Radius.sm,
-    borderWidth: 1, borderColor: Colors.border, alignItems: 'center',
-  },
-  clearBtnText: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textSecondary },
-  applyBtn: {
-    flex: 2, paddingVertical: 10, borderRadius: Radius.sm,
-    backgroundColor: Colors.primary, alignItems: 'center',
-  },
-  applyBtnText: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.white },
-
-  list: { padding: Spacing.lg, paddingBottom: 120 },
+  countText: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  countFiltered: { color: Colors.primary, fontWeight: '600' },
+  clearLink: { fontSize: FontSize.sm, color: Colors.error, fontWeight: '600' },
+  list: { padding: Spacing.lg, paddingBottom: 130 },
   empty: { alignItems: 'center', paddingTop: 60, gap: Spacing.sm },
   emptyText: { fontSize: FontSize.md, color: Colors.textMuted },
-  clearLink: { marginTop: Spacing.xs },
-  clearLinkText: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: '600' },
-
   card: {
     backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md,
     marginBottom: Spacing.sm, shadowColor: Colors.shadow,
@@ -354,4 +390,78 @@ const styles = StyleSheet.create({
   amtItem: { flex: 1, alignItems: 'center' },
   amtLabel: { fontSize: FontSize.xs, color: Colors.textMuted, marginBottom: 2 },
   amtValue: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.text },
+  filterFab: {
+    position: 'absolute', bottom: 100, alignSelf: 'center',
+    left: '50%', marginLeft: -28,
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: '#111827',
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 8,
+  },
+  filterFabActive: { backgroundColor: Colors.primary },
+  filterDot: {
+    position: 'absolute', top: 10, right: 10,
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: Colors.error, borderWidth: 1.5, borderColor: Colors.white,
+  },
+});
+
+// ── Dark sheet styles ────────────────────────────────────────────
+const ds = StyleSheet.create({
+  backdrop: { backgroundColor: 'rgba(0,0,0,0.6)' },
+  sheet: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: '#111827',
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    overflow: 'hidden',
+  },
+  handle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignSelf: 'center', marginTop: 12, marginBottom: 4,
+  },
+  sheetScroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
+
+  searchRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: Radius.full,
+    paddingHorizontal: 14, paddingVertical: 10,
+    marginBottom: 16,
+  },
+  searchInput: { flex: 1, fontSize: FontSize.sm, color: Colors.white },
+
+  groupLabel: {
+    fontSize: FontSize.xs, fontWeight: '700',
+    color: 'rgba(255,255,255,0.4)',
+    textTransform: 'uppercase', letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  pillWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+
+  pill: {
+    paddingHorizontal: 16, paddingVertical: 8,
+    borderRadius: Radius.full,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  pillActive: { backgroundColor: Colors.white },
+  pillText: { fontSize: FontSize.sm, fontWeight: '600', color: 'rgba(255,255,255,0.85)' },
+  pillTextActive: { color: '#111827' },
+
+  actionRow: {
+    flexDirection: 'row', gap: 10,
+    paddingHorizontal: 20, paddingTop: 10,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)',
+  },
+  clearBtn: {
+    flex: 1, paddingVertical: 13, borderRadius: Radius.full,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+  },
+  clearBtnText: { fontSize: FontSize.sm, fontWeight: '600', color: 'rgba(255,255,255,0.7)' },
+  applyBtn: {
+    flex: 2, paddingVertical: 13, borderRadius: Radius.full,
+    backgroundColor: Colors.white, alignItems: 'center',
+  },
+  applyBtnText: { fontSize: FontSize.sm, fontWeight: '700', color: '#111827' },
 });

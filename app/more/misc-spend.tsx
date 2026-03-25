@@ -29,7 +29,7 @@ export default function MiscSpendScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       quality: 0.8,
       allowsEditing: false,
     });
@@ -50,11 +50,9 @@ export default function MiscSpendScreen() {
       setError('Proof photo is required.');
       return;
     }
-
     setError('');
     setSuccess('');
     setSaving(true);
-
     try {
       const formData = new FormData();
       formData.append('amount', amount);
@@ -62,21 +60,11 @@ export default function MiscSpendScreen() {
       formData.append('reason', reason);
       formData.append('whoDidTrx', whoDidTrx);
       if (transactionUtr) formData.append('transactionUtr', transactionUtr);
-      formData.append('transactionDonePhoto', {
-        uri: photo.uri,
-        name: photo.name,
-        type: photo.type,
-      } as any);
-
+      formData.append('transactionDonePhoto', { uri: photo.uri, name: photo.name, type: photo.type } as any);
       await api.postForm('/driver/transactions/misc', formData);
-
-      setSuccess('Miscellaneous spend recorded successfully! You can view it in the Transactions tab.');
-      setAmount('');
-      setReason('');
-      setWhoDidTrx('');
-      setTransactionUtr('');
-      setPhoto(null);
-      setDateOfSpend(todayISO());
+      setSuccess('Miscellaneous spend recorded! View it in the Transactions tab.');
+      setAmount(''); setReason(''); setWhoDidTrx(''); setTransactionUtr('');
+      setPhoto(null); setDateOfSpend(todayISO());
     } catch (e: any) {
       setError(e.message ?? 'Failed to submit. Please try again.');
     } finally {
@@ -85,14 +73,8 @@ export default function MiscSpendScreen() {
   }
 
   function handleReset() {
-    setAmount('');
-    setReason('');
-    setWhoDidTrx('');
-    setTransactionUtr('');
-    setPhoto(null);
-    setDateOfSpend(todayISO());
-    setError('');
-    setSuccess('');
+    setAmount(''); setReason(''); setWhoDidTrx(''); setTransactionUtr('');
+    setPhoto(null); setDateOfSpend(todayISO()); setError(''); setSuccess('');
   }
 
   return (
@@ -100,7 +82,6 @@ export default function MiscSpendScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
-          {/* Page header */}
           <View style={styles.pageHeader}>
             <View style={styles.iconBox}>
               <Ionicons name="receipt-outline" size={22} color={Colors.orange} />
@@ -111,7 +92,6 @@ export default function MiscSpendScreen() {
             </View>
           </View>
 
-          {/* Error / Success banners */}
           {!!error && (
             <View style={styles.errorBanner}>
               <Ionicons name="alert-circle-outline" size={16} color={Colors.error} />
@@ -125,7 +105,6 @@ export default function MiscSpendScreen() {
             </View>
           )}
 
-          {/* ── Financial Details ── */}
           <Text style={styles.sectionTitle}>Financial Details</Text>
 
           <View style={styles.row}>
@@ -169,7 +148,6 @@ export default function MiscSpendScreen() {
             />
           </View>
 
-          {/* ── Entity & Verification ── */}
           <Text style={styles.sectionTitle}>Entity & Verification</Text>
 
           <View style={styles.row}>
@@ -195,7 +173,6 @@ export default function MiscSpendScreen() {
             </View>
           </View>
 
-          {/* ── Proof Photo ── */}
           <View style={styles.field}>
             <Text style={styles.label}>Proof Photo <Text style={styles.req}>*</Text></Text>
             <TouchableOpacity style={styles.uploadBox} onPress={pickPhoto} activeOpacity={0.7}>
@@ -218,7 +195,6 @@ export default function MiscSpendScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* ── Actions ── */}
           <View style={styles.actions}>
             <TouchableOpacity style={styles.resetBtn} onPress={handleReset} disabled={saving}>
               <Text style={styles.resetBtnText}>Reset</Text>
@@ -245,33 +221,25 @@ export default function MiscSpendScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   scroll: { padding: Spacing.lg },
-
   pageHeader: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
     backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md,
     marginBottom: Spacing.lg,
     shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2,
   },
-  iconBox: {
-    width: 44, height: 44, borderRadius: Radius.md,
-    backgroundColor: '#FFF7ED', alignItems: 'center', justifyContent: 'center',
-  },
+  iconBox: { width: 44, height: 44, borderRadius: Radius.md, backgroundColor: '#FFF7ED', alignItems: 'center', justifyContent: 'center' },
   pageTitle: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text },
   pageSubtitle: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
-
   errorBanner: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
-    backgroundColor: Colors.errorBg, borderRadius: Radius.sm, padding: Spacing.sm,
-    marginBottom: Spacing.md,
+    backgroundColor: Colors.errorBg, borderRadius: Radius.sm, padding: Spacing.sm, marginBottom: Spacing.md,
   },
   errorText: { flex: 1, fontSize: FontSize.sm, color: Colors.error },
   successBanner: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
-    backgroundColor: Colors.successBg, borderRadius: Radius.sm, padding: Spacing.sm,
-    marginBottom: Spacing.md,
+    backgroundColor: Colors.successBg, borderRadius: Radius.sm, padding: Spacing.sm, marginBottom: Spacing.md,
   },
   successText: { flex: 1, fontSize: FontSize.sm, color: Colors.success },
-
   sectionTitle: {
     fontSize: FontSize.xs, fontWeight: '700', color: Colors.textMuted,
     textTransform: 'uppercase', letterSpacing: 0.6,
@@ -296,19 +264,10 @@ const styles = StyleSheet.create({
   prefix: {
     paddingHorizontal: Spacing.sm, paddingVertical: 10,
     fontSize: FontSize.md, color: Colors.textSecondary,
-    borderRightWidth: 1, borderRightColor: Colors.border,
-    backgroundColor: Colors.inputBg,
+    borderRightWidth: 1, borderRightColor: Colors.border, backgroundColor: Colors.inputBg,
   },
-  prefixTextInput: {
-    flex: 1, paddingHorizontal: Spacing.sm, paddingVertical: 10,
-    fontSize: FontSize.sm, color: Colors.text,
-  },
-
-  uploadBox: {
-    borderWidth: 2, borderColor: Colors.border, borderStyle: 'dashed',
-    borderRadius: Radius.sm, backgroundColor: Colors.white,
-    overflow: 'hidden',
-  },
+  prefixTextInput: { flex: 1, paddingHorizontal: Spacing.sm, paddingVertical: 10, fontSize: FontSize.sm, color: Colors.text },
+  uploadBox: { borderWidth: 2, borderColor: Colors.border, borderStyle: 'dashed', borderRadius: Radius.sm, backgroundColor: Colors.white, overflow: 'hidden' },
   uploadPlaceholder: { alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xl, gap: Spacing.xs },
   uploadText: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textSecondary },
   uploadSub: { fontSize: FontSize.xs, color: Colors.textMuted },
@@ -316,18 +275,10 @@ const styles = StyleSheet.create({
   thumbImage: { width: 56, height: 56, borderRadius: Radius.sm, backgroundColor: Colors.border },
   photoName: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.text },
   photoChange: { fontSize: FontSize.xs, color: Colors.primary, marginTop: 2 },
-
   actions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.lg },
-  resetBtn: {
-    flex: 1, paddingVertical: 12, borderRadius: Radius.sm,
-    borderWidth: 1, borderColor: Colors.border, alignItems: 'center',
-  },
+  resetBtn: { flex: 1, paddingVertical: 12, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
   resetBtnText: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textSecondary },
-  submitBtn: {
-    flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: Spacing.xs, paddingVertical: 12, borderRadius: Radius.sm,
-    backgroundColor: Colors.primary,
-  },
+  submitBtn: { flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, paddingVertical: 12, borderRadius: Radius.sm, backgroundColor: Colors.primary },
   submitBtnDisabled: { opacity: 0.6 },
   submitBtnText: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.white },
 });
