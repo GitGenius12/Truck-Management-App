@@ -299,6 +299,7 @@ function FilterSheet({ visible, onClose, onApply, onClear, hasFilters, filters, 
 
 // ── Main screen ──────────────────────────────────────────────────
 export default function TransactionsScreen() {
+  const insets = useSafeAreaInsets();
   const [txns, setTxns] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -366,7 +367,7 @@ export default function TransactionsScreen() {
         <FlatList
           data={txns}
           keyExtractor={i => i._id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: Math.max(insets.bottom, 21) + 190 }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
           ListHeaderComponent={txns.length > 0 ? (
             <SpendSummaryCard txns={txns} applied={applied} count={total} />
@@ -429,7 +430,7 @@ export default function TransactionsScreen() {
       )}
 
       {/* ── Floating filter button ── */}
-      <TouchableOpacity style={[styles.filterFab, hasFilters && styles.filterFabActive]} onPress={openSheet} activeOpacity={0.85}>
+      <TouchableOpacity style={[styles.filterFab, hasFilters && styles.filterFabActive, { bottom: Math.max(insets.bottom, 21) + 110 }]} onPress={openSheet} activeOpacity={0.85}>
         <Ionicons name="options-outline" size={22} color={Colors.white} />
         {hasFilters && <View style={styles.filterDot} />}
       </TouchableOpacity>
@@ -458,7 +459,7 @@ const styles = StyleSheet.create({
   countText: { fontSize: FontSize.sm, color: Colors.textSecondary },
   countFiltered: { color: Colors.primary, fontWeight: '600' },
   clearLink: { fontSize: FontSize.sm, color: Colors.error, fontWeight: '600' },
-  list: { padding: Spacing.lg, paddingBottom: 130 },
+  list: { padding: Spacing.lg },
   empty: { alignItems: 'center', paddingTop: 60, gap: Spacing.sm },
   emptyText: { fontSize: FontSize.md, color: Colors.textMuted },
   card: {
@@ -478,7 +479,7 @@ const styles = StyleSheet.create({
   amtLabel: { fontSize: FontSize.xs, color: Colors.textMuted, marginBottom: 2 },
   amtValue: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.text },
   filterFab: {
-    position: 'absolute', bottom: 100, alignSelf: 'center',
+    position: 'absolute', alignSelf: 'center',
     left: '50%', marginLeft: -28,
     width: 56, height: 56, borderRadius: 28,
     backgroundColor: '#111827',

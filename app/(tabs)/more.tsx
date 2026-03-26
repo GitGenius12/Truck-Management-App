@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, Pressable,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,13 +21,7 @@ interface MenuItem {
 
 export default function MoreScreen() {
   const { user, logout } = useAuth();
-
-  function handleLogout() {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: logout },
-    ]);
-  }
+  const [signOutVisible, setSignOutVisible] = useState(false);
 
   const role = user?.role;
 
@@ -228,7 +222,7 @@ export default function MoreScreen() {
         {/* Sign Out */}
         <View style={styles.group}>
           <View style={styles.groupCard}>
-            <TouchableOpacity style={styles.menuItem} onPress={handleLogout} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => setSignOutVisible(true)} activeOpacity={0.7}>
               <View style={[styles.menuIcon, styles.menuIconDanger]}>
                 <Ionicons name="log-out-outline" size={20} color={Colors.error} />
               </View>
@@ -242,6 +236,27 @@ export default function MoreScreen() {
 
         <Text style={styles.version}>Sainik + Amrit</Text>
       </ScrollView>
+
+      {/* Sign Out confirmation modal */}
+      <Modal visible={signOutVisible} transparent animationType="fade" onRequestClose={() => setSignOutVisible(false)}>
+        <Pressable style={so.backdrop} onPress={() => setSignOutVisible(false)}>
+          <Pressable style={so.card} onPress={() => {}}>
+            <View style={so.iconWrap}>
+              <Ionicons name="log-out-outline" size={28} color={Colors.error} />
+            </View>
+            <Text style={so.title}>Sign Out</Text>
+            <Text style={so.body}>Are you sure you want to sign out of your account?</Text>
+            <View style={so.btnRow}>
+              <TouchableOpacity style={so.cancelBtn} onPress={() => setSignOutVisible(false)} activeOpacity={0.75}>
+                <Text style={so.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={so.signOutBtn} onPress={logout} activeOpacity={0.85}>
+                <Text style={so.signOutText}>Sign Out</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -300,4 +315,40 @@ const styles = StyleSheet.create({
   menuSub: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
   divider: { height: 1, backgroundColor: Colors.border, marginLeft: 70 },
   version: { textAlign: 'center', fontSize: FontSize.xs, color: Colors.textMuted, marginTop: Spacing.lg },
+});
+
+const so = StyleSheet.create({
+  backdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  card: {
+    width: '100%', backgroundColor: '#111827',
+    borderRadius: 24, padding: 24, alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.4, shadowRadius: 24, elevation: 16,
+  },
+  iconWrap: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: Colors.errorBg,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 16,
+  },
+  title: { fontSize: FontSize.lg, fontWeight: '700', color: '#fff', marginBottom: 8 },
+  body: {
+    fontSize: FontSize.sm, color: 'rgba(255,255,255,0.55)',
+    textAlign: 'center', lineHeight: 20, marginBottom: 24,
+  },
+  btnRow: { flexDirection: 'row', gap: 10, width: '100%' },
+  cancelBtn: {
+    flex: 1, paddingVertical: 13, borderRadius: Radius.full,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+  },
+  cancelText: { fontSize: FontSize.sm, fontWeight: '600', color: 'rgba(255,255,255,0.65)' },
+  signOutBtn: {
+    flex: 1, paddingVertical: 13, borderRadius: Radius.full,
+    backgroundColor: Colors.error, alignItems: 'center',
+  },
+  signOutText: { fontSize: FontSize.sm, fontWeight: '700', color: '#fff' },
 });

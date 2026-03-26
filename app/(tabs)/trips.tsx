@@ -274,6 +274,7 @@ function FilterSheet({ visible, onClose, onApply, onClear, hasFilters,
 
 // ── Main screen ──────────────────────────────────────────────────
 export default function TripsScreen() {
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
@@ -374,7 +375,7 @@ export default function TripsScreen() {
         <FlatList
           data={trips}
           keyExtractor={item => item._id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: Math.max(insets.bottom, 21) + 190 }]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -425,7 +426,7 @@ export default function TripsScreen() {
 
       {/* ── Circular filter FAB ── */}
       <TouchableOpacity
-        style={[styles.filterFab, hasFilters && styles.filterFabActive]}
+        style={[styles.filterFab, hasFilters && styles.filterFabActive, { bottom: Math.max(insets.bottom, 21) + 110 }]}
         onPress={openSheet}
         activeOpacity={0.85}
       >
@@ -508,7 +509,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center', justifyContent: 'center',
   },
-  list: { padding: Spacing.lg, paddingBottom: 130 },
+  list: { padding: Spacing.lg },
   empty: { alignItems: 'center', paddingTop: 60, gap: Spacing.sm },
   emptyText: { fontSize: FontSize.md, color: Colors.textMuted },
   emptyBtn: { backgroundColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, marginTop: Spacing.xs },
@@ -533,7 +534,7 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: FontSize.xs, color: Colors.textMuted },
   // FAB
   filterFab: {
-    position: 'absolute', bottom: 100,
+    position: 'absolute',
     left: SCREEN_W / 2 - 28,
     width: 56, height: 56, borderRadius: 28,
     backgroundColor: '#111827',
