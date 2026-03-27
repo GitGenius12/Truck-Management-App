@@ -131,15 +131,15 @@ export default function DashboardScreen() {
 
   function openEditor() {
     setShowEditor(true);
-    translateY.value = withSpring(0, { mass: 0.8, stiffness: 120, damping: 20 });
+    translateY.value = withSpring(0, { mass: 0.6, stiffness: 200, damping: 22 });
     backdropOpacity.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.quad) });
   }
 
   function closeEditor() {
-    translateY.value = withTiming(SHEET_H, { duration: 380, easing: Easing.bezier(0.32, 0, 0.67, 0) }, (done) => {
+    translateY.value = withTiming(SHEET_H, { duration: 240, easing: Easing.bezier(0.32, 0, 0.67, 0) }, (done) => {
       if (done) runOnJS(setShowEditor)(false);
     });
-    backdropOpacity.value = withTiming(0, { duration: 300, easing: Easing.in(Easing.quad) });
+    backdropOpacity.value = withTiming(0, { duration: 200, easing: Easing.in(Easing.quad) });
   }
 
   const editorPan = Gesture.Pan()
@@ -152,11 +152,11 @@ export default function DashboardScreen() {
     })
     .onEnd((e) => {
       if (translateY.value > SHEET_H * 0.3 || e.velocityY > 500) {
-        translateY.value = withTiming(SHEET_H, { duration: 380, easing: Easing.bezier(0.32, 0, 0.67, 0) }, (done) => {
+        translateY.value = withTiming(SHEET_H, { duration: 240, easing: Easing.bezier(0.32, 0, 0.67, 0) }, (done) => {
           if (done) runOnJS(setShowEditor)(false);
         });
       } else {
-        translateY.value = withSpring(0, { mass: 0.8, stiffness: 120, damping: 20 });
+        translateY.value = withSpring(0, { mass: 0.6, stiffness: 200, damping: 22 });
       }
     });
   const role = (user?.role ?? 'STAFF') as keyof typeof ALL_ACTIONS;

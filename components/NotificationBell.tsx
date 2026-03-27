@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -22,6 +23,7 @@ interface AppNotification {
   title: string;
   body: string;
   createdAt: string;
+  data?: { type?: string; [key: string]: any };
 }
 
 interface NotifResponse {
@@ -40,15 +42,45 @@ function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString();
 }
 
-function NotifCard({ notif }: { notif: AppNotification }) {
+function routeForType(type?: string) {
+  switch (type) {
+    case 'approval_request':
+    case 'approved':
+    case 'rejected':
+      return '/more/approvals';
+    case 'assignment_created':
+    case 'assignment_removed':
+      return '/more/assignment';
+    case 'trip_created':
+    case 'trip_updated':
+      return '/(tabs)/trips';
+    case 'bank_entry':
+    case 'bank_entry_updated':
+      return '/more/bank-entry';
+    case 'doc_expiry':
+      return '/more/validity';
+    default:
+      return null;
+  }
+}
+
+function NotifCard({ notif, onPress }: { notif: AppNotification; onPress: () => void }) {
+  const route = routeForType(notif.data?.type);
   return (
-    <View style={cardStyles.card}>
+    <TouchableOpacity
+      style={cardStyles.card}
+      onPress={route ? onPress : undefined}
+      activeOpacity={route ? 0.65 : 1}
+    >
       <View style={cardStyles.left}>
         <Text style={cardStyles.title}>{notif.title}</Text>
         <Text style={cardStyles.body}>{notif.body}</Text>
       </View>
-      <Text style={cardStyles.time}>{timeAgo(notif.createdAt)}</Text>
-    </View>
+      <View style={cardStyles.right}>
+        <Text style={cardStyles.time}>{timeAgo(notif.createdAt)}</Text>
+        {!!route && <Ionicons name="chevron-forward" size={14} color="#B8CECC" style={{ marginTop: 2 }} />}
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -63,6 +95,7 @@ const cardStyles = StyleSheet.create({
     gap: Spacing.md,
   },
   left: { flex: 1 },
+  right: { alignItems: 'flex-end', gap: 2 },
   title: { fontSize: FontSize.md, fontWeight: '700', color: '#102A2A' },
   body: { fontSize: FontSize.sm, color: '#6B7F7D', marginTop: 2 },
   time: { fontSize: FontSize.xs, color: '#0D7377', fontWeight: '600', flexShrink: 0, marginTop: 2 },
@@ -114,7 +147,7 @@ export default function NotificationBell() {
 
   function openSheet() {
     setShowNotifs(true);
-    translateY.value = withSpring(0, { mass: 0.8, stiffness: 120, damping: 20 });
+    translateY.value = withSpring(0, { mass: 0.6, stiffness: 200, damping: 22 });
     loadNotifications(1);
   }
 
@@ -127,7 +160,7 @@ export default function NotificationBell() {
   }, []);
 
   const closeSheet = useCallback(() => {
-    translateY.value = withTiming(SHEET_H, { duration: 380, easing: Easing.bezier(0.32, 0, 0.67, 0) }, (done) => {
+    translateY.value = withTiming(SHEET_H, { duration: 240, easing: Easing.bezier(0.32, 0, 0.67, 0) }, (done) => {
       if (done) runOnJS(handleClose)();
     });
   }, [handleClose]);
@@ -142,11 +175,11 @@ export default function NotificationBell() {
     })
     .onEnd((e) => {
       if (translateY.value > SHEET_H * 0.3 || e.velocityY > 500) {
-        translateY.value = withTiming(SHEET_H, { duration: 380, easing: Easing.bezier(0.32, 0, 0.67, 0) }, (done) => {
+        translateY.value = withTiming(SHEET_H, { duration: 240, easing: Easing.bezier(0.32, 0, 0.67, 0) }, (done) => {
           if (done) runOnJS(handleClose)();
         });
       } else {
-        translateY.value = withSpring(0, { mass: 0.8, stiffness: 120, damping: 20 });
+        translateY.value = withSpring(0, { mass: 0.6, stiffness: 200, damping: 22 });
       }
     });
 
@@ -199,7 +232,17 @@ export default function NotificationBell() {
                   data={notifications}
                   keyExtractor={item => item._id}
                   contentContainerStyle={{ paddingBottom: 16 }}
-                  renderItem={({ item }) => <NotifCard notif={item} />}
+                  renderItem={({ item }) => (
+                    <NotifCard
+                      notif={item}
+                      onPress={() => {
+                        const route = routeForType(item.data?.type);
+                        if (!route) return;
+                        closeSheet();
+                        setTimeout(() => router.push(route as any), 100);
+                      }}
+                    />
+                  )}
                   ListFooterComponent={
                     notifTotalPages > 1 ? (
                       <View style={styles.pager}>
