@@ -3,9 +3,13 @@ import {
   View, Text, FlatList, StyleSheet, RefreshControl,
   TouchableOpacity, Modal, ScrollView, TextInput,
   KeyboardAvoidingView, Platform, Alert, Switch,
-  Animated, Dimensions, Pressable,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, Easing, interpolate, clamp,
+} from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { ListSkeleton } from '@/components/Skeleton';
 import { api } from '@/services/api';
@@ -107,36 +111,56 @@ function FilterSheet({ visible, onClose, onApply, onClear, hasFilters, startDate
   setStartDate: (v: string) => void; setEndDate: (v: string) => void; setRoleFilter: (v: string) => void;
 }) {
   const insets = useSafeAreaInsets();
-  const translateY = useRef(new Animated.Value(SHEET_H)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useSharedValue(SHEET_H);
+  const opacity = useSharedValue(0);
+  const startY = useSharedValue(0);
 
   useEffect(() => {
     if (visible) {
-      Animated.parallel([
-        Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 180 }),
-        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-      ]).start();
+      translateY.value = withSpring(0, { mass: 0.8, stiffness: 120, damping: 20 });
+      opacity.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.quad) });
     } else {
-      Animated.parallel([
-        Animated.timing(translateY, { toValue: SHEET_H, duration: 250, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }),
-      ]).start();
+      translateY.value = withTiming(SHEET_H, { duration: 495, easing: Easing.bezier(0.32, 0, 0.67, 0) });
+      opacity.value = withTiming(0, { duration: 400, easing: Easing.in(Easing.quad) });
     }
   }, [visible]);
 
+  const sheetAnim = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
+  const backdropAnim = useAnimatedStyle(() => ({
+    opacity: interpolate(translateY.value, [0, SHEET_H], [1, 0], 'clamp'),
+  }));
+
+  const pan = Gesture.Pan()
+    .activeOffsetY(5)
+    .onStart(() => {
+      startY.value = translateY.value;
+    })
+    .onUpdate((e) => {
+      translateY.value = clamp(startY.value + e.translationY, 0, SHEET_H);
+    })
+    .onEnd((e) => {
+      if (translateY.value > SHEET_H * 0.3 || e.velocityY > 500) {
+        translateY.value = withTiming(SHEET_H, { duration: 495, easing: Easing.bezier(0.32, 0, 0.67, 0) }, (done) => {
+          if (done) runOnJS(onClose)();
+        });
+      } else {
+        translateY.value = withSpring(0, { mass: 0.8, stiffness: 120, damping: 20 });
+      }
+    });
+
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
-        <Animated.View style={[StyleSheet.absoluteFill, ds.backdrop, { opacity }]} />
-      </Pressable>
+      <Animated.View style={[ds.overlay, backdropAnim]}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
+        <GestureDetector gesture={pan}>
+          <Animated.View
+            style={[ds.sheet, { height: SHEET_H, paddingBottom: insets.bottom + 16 }, sheetAnim]}
+          >
+            <View style={ds.handleWrap}>
+              <View style={ds.handle} />
+            </View>
 
-      <Animated.View
-        style={[ds.sheet, { height: SHEET_H, paddingBottom: insets.bottom + 16, transform: [{ translateY }] }]}
-        pointerEvents="box-none"
-      >
-        <View style={ds.handle} />
-
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={ds.sheetScroll}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={ds.sheetScroll}>
           <Text style={ds.groupLabel}>Start Date</Text>
           <View style={ds.inputRow}>
             <TextInput
@@ -144,7 +168,7 @@ function FilterSheet({ visible, onClose, onApply, onClear, hasFilters, startDate
               value={startDate}
               onChangeText={setStartDate}
               placeholder="YYYY-MM-DD"
-              placeholderTextColor="rgba(255,255,255,0.3)"
+              placeholderTextColor="#B8CECC"
             />
           </View>
 
@@ -155,7 +179,7 @@ function FilterSheet({ visible, onClose, onApply, onClear, hasFilters, startDate
               value={endDate}
               onChangeText={setEndDate}
               placeholder="YYYY-MM-DD"
-              placeholderTextColor="rgba(255,255,255,0.3)"
+              placeholderTextColor="#B8CECC"
             />
           </View>
 
@@ -182,6 +206,8 @@ function FilterSheet({ visible, onClose, onApply, onClear, hasFilters, startDate
             <Text style={ds.applyBtnText}>Apply filters</Text>
           </TouchableOpacity>
         </View>
+          </Animated.View>
+        </GestureDetector>
       </Animated.View>
     </Modal>
   );
@@ -541,46 +567,60 @@ const styles = StyleSheet.create({
 });
 
 const ds = StyleSheet.create({
-  backdrop: { backgroundColor: 'rgba(0,0,0,0.6)' },
-  sheet: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: '#111827',
-    borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    overflow: 'hidden',
+  overlay: {
+    flex: 1,
+    justifyContent: 'flex-end' as const,
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
+  sheet: {
+    backgroundColor: '#F8FCFC',
+    borderTopLeftRadius: 48, borderTopRightRadius: 48,
+    overflow: 'hidden' as const,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  handleWrap: { alignItems: 'center', paddingVertical: 12 },
   handle: {
-    width: 40, height: 4, borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignSelf: 'center', marginTop: 12, marginBottom: 4,
+    width: 86, height: 5, borderRadius: 999,
+    backgroundColor: '#8FBFBC',
+    shadowColor: '#0D7377',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 6,
+    elevation: 4,
   },
   sheetScroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
   groupLabel: {
     fontSize: FontSize.xs, fontWeight: '700',
-    color: 'rgba(255,255,255,0.4)',
+    color: '#6B7F7D',
     textTransform: 'uppercase', letterSpacing: 0.8,
     marginBottom: 8,
   },
   inputRow: {
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: Colors.white,
     borderRadius: Radius.full,
+    borderWidth: 1, borderColor: '#DCE9E7',
     paddingHorizontal: 14, paddingVertical: 10,
     marginBottom: 16,
   },
-  sheetInput: { fontSize: FontSize.sm, color: Colors.white },
+  sheetInput: { fontSize: FontSize.sm, color: '#102A2A' },
   pillWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-  pill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.full, backgroundColor: 'rgba(255,255,255,0.1)' },
-  pillActive: { backgroundColor: Colors.white },
-  pillText: { fontSize: FontSize.sm, fontWeight: '600', color: 'rgba(255,255,255,0.85)' },
-  pillTextActive: { color: '#111827' },
+  pill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.full, backgroundColor: Colors.white, borderWidth: 1, borderColor: '#DCE9E7' },
+  pillActive: { backgroundColor: '#0D7377', borderColor: '#0D7377' },
+  pillText: { fontSize: FontSize.sm, fontWeight: '600', color: '#102A2A' },
+  pillTextActive: { color: Colors.white },
   actionRow: {
     flexDirection: 'row', gap: 10,
     paddingHorizontal: 20, paddingTop: 10,
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopWidth: 1, borderTopColor: '#DCE9E7',
   },
-  clearBtn: { flex: 1, paddingVertical: 13, borderRadius: Radius.full, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', alignItems: 'center' },
-  clearBtnText: { fontSize: FontSize.sm, fontWeight: '600', color: 'rgba(255,255,255,0.7)' },
-  applyBtn: { flex: 2, paddingVertical: 13, borderRadius: Radius.full, backgroundColor: Colors.white, alignItems: 'center' },
-  applyBtnText: { fontSize: FontSize.sm, fontWeight: '700', color: '#111827' },
+  clearBtn: { flex: 1, paddingVertical: 13, borderRadius: 14, borderWidth: 1, borderColor: '#DCE9E7', alignItems: 'center' },
+  clearBtnText: { fontSize: FontSize.sm, fontWeight: '600', color: '#6B7F7D' },
+  applyBtn: { flex: 2, paddingVertical: 13, borderRadius: 14, backgroundColor: '#0D7377', alignItems: 'center' },
+  applyBtnText: { fontSize: FontSize.sm, fontWeight: '700', color: '#ECFFFB' },
 });
 
 const addStyles = StyleSheet.create({

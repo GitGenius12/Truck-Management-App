@@ -9,7 +9,12 @@ import {
   RefreshControl,
   Modal,
   FlatList,
+  Dimensions,
 } from 'react-native';
+import Animated, {
+  useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, Easing, interpolate, clamp,
+} from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -105,6 +110,8 @@ function getGreeting() {
   return 'Good Evening';
 }
 
+const SHEET_H = Dimensions.get('window').height * 0.68;
+
 export default function DashboardScreen() {
   const { user } = useAuth();
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -113,6 +120,45 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [pinned, setPinned] = useState<string[]>([]);
   const [showEditor, setShowEditor] = useState(false);
+  const translateY = useSharedValue(SHEET_H);
+  const backdropOpacity = useSharedValue(0);
+  const startY = useSharedValue(0);
+
+  const sheetAnim = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
+  const backdropAnim = useAnimatedStyle(() => ({
+    opacity: interpolate(translateY.value, [0, SHEET_H], [1, 0], 'clamp'),
+  }));
+
+  function openEditor() {
+    setShowEditor(true);
+    translateY.value = withSpring(0, { mass: 0.8, stiffness: 120, damping: 20 });
+    backdropOpacity.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.quad) });
+  }
+
+  function closeEditor() {
+    translateY.value = withTiming(SHEET_H, { duration: 380, easing: Easing.bezier(0.32, 0, 0.67, 0) }, (done) => {
+      if (done) runOnJS(setShowEditor)(false);
+    });
+    backdropOpacity.value = withTiming(0, { duration: 300, easing: Easing.in(Easing.quad) });
+  }
+
+  const editorPan = Gesture.Pan()
+    .activeOffsetY(5)
+    .onStart(() => {
+      startY.value = translateY.value;
+    })
+    .onUpdate((e) => {
+      translateY.value = clamp(startY.value + e.translationY, 0, SHEET_H);
+    })
+    .onEnd((e) => {
+      if (translateY.value > SHEET_H * 0.3 || e.velocityY > 500) {
+        translateY.value = withTiming(SHEET_H, { duration: 380, easing: Easing.bezier(0.32, 0, 0.67, 0) }, (done) => {
+          if (done) runOnJS(setShowEditor)(false);
+        });
+      } else {
+        translateY.value = withSpring(0, { mass: 0.8, stiffness: 120, damping: 20 });
+      }
+    });
   const role = (user?.role ?? 'STAFF') as keyof typeof ALL_ACTIONS;
   const allActions = ALL_ACTIONS[role] ?? ALL_ACTIONS.STAFF;
   const storageKey = `quick_actions_${user?._id ?? 'guest'}`;
@@ -204,14 +250,14 @@ export default function DashboardScreen() {
         {/* Quick Actions */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionLabel}>QUICK ACTIONS</Text>
-          <TouchableOpacity onPress={() => setShowEditor(true)} style={styles.editBtn}>
+          <TouchableOpacity onPress={openEditor} style={styles.editBtn}>
             <Ionicons name="star-outline" size={14} color={Colors.primary} />
             <Text style={styles.editBtnText}>Customize</Text>
           </TouchableOpacity>
         </View>
 
         {pinnedActions.length === 0 ? (
-          <TouchableOpacity style={styles.emptyActions} onPress={() => setShowEditor(true)}>
+          <TouchableOpacity style={styles.emptyActions} onPress={openEditor}>
             <Ionicons name="star-outline" size={20} color={Colors.textMuted} />
             <Text style={styles.emptyActionsText}>Tap Customize to pin quick actions</Text>
           </TouchableOpacity>
@@ -259,43 +305,64 @@ export default function DashboardScreen() {
       </ScrollView>
 
       {/* Customize Modal */}
-      <Modal visible={showEditor} animationType="slide" transparent onRequestClose={() => setShowEditor(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowEditor(false)} />
-        <View style={styles.modalSheet}>
-          <View style={styles.modalHandle} />
+      <Modal visible={showEditor} animationType="none" transparent onRequestClose={closeEditor}>
+        <Animated.View style={[styles.modalOverlay, backdropAnim]}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={closeEditor} />
+          <Animated.View style={[styles.modalSheet, sheetAnim]}>
+          {/* Handle — drag to dismiss */}
+          <GestureDetector gesture={editorPan}>
+            <View style={styles.modalHandleWrap}>
+              <View style={styles.modalHandle} />
+            </View>
+          </GestureDetector>
+
+          {/* Header */}
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Customize Quick Actions</Text>
-            <TouchableOpacity onPress={() => setShowEditor(false)}>
-              <Ionicons name="close" size={22} color={Colors.text} />
+            <View style={{ gap: 4 }}>
+              <Text style={styles.modalTitle}>Customize Quick Actions</Text>
+              <Text style={styles.modalHint}>Tap stars to pin your command deck</Text>
+            </View>
+            <TouchableOpacity style={styles.modalCloseBtn} onPress={closeEditor} activeOpacity={0.75}>
+              <Ionicons name="close" size={18} color="#355553" />
             </TouchableOpacity>
           </View>
-          <Text style={styles.modalHint}>Star sections to pin them as quick actions</Text>
+
+          {/* List */}
           <FlatList
             data={allActions}
             keyExtractor={item => item.id}
-            contentContainerStyle={{ paddingBottom: 32 }}
+            contentContainerStyle={styles.modalList}
+            showsVerticalScrollIndicator={false}
             renderItem={({ item }) => {
               const isPinned = pinned.includes(item.id);
               return (
                 <TouchableOpacity
-                  style={[styles.actionRow, isPinned && styles.actionRowPinned]}
+                  style={styles.actionRow}
                   onPress={() => togglePin(item.id)}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.actionRowIcon, { backgroundColor: item.color + '18' }]}>
-                    <Ionicons name={item.icon as any} size={20} color={item.color} />
+                  <View style={[styles.actionRowIcon, { backgroundColor: item.color + '22' }]}>
+                    <Ionicons name={item.icon as any} size={18} color={item.color} />
                   </View>
                   <Text style={styles.actionRowLabel}>{item.label}</Text>
-                  <Ionicons
-                    name={isPinned ? 'star' : 'star-outline'}
-                    size={20}
-                    color={isPinned ? Colors.warning : Colors.textMuted}
-                  />
+                  <View style={[styles.starWrap, isPinned && styles.starWrapActive]}>
+                    <Ionicons
+                      name={isPinned ? 'star' : 'star-outline'}
+                      size={15}
+                      color={isPinned ? '#F59E0B' : '#B4C3C1'}
+                    />
+                  </View>
                 </TouchableOpacity>
               );
             }}
           />
-        </View>
+
+          {/* Done button */}
+          <TouchableOpacity style={styles.modalDoneBtn} onPress={closeEditor} activeOpacity={0.88}>
+            <Text style={styles.modalDoneText}>Done Customizing</Text>
+          </TouchableOpacity>
+        </Animated.View>
+        </Animated.View>
       </Modal>
     </SafeAreaView>
   );
@@ -441,35 +508,66 @@ const styles = StyleSheet.create({
   tripKm: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.primary },
   tripDiesel: { fontSize: FontSize.xs, color: Colors.textMuted },
   // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    // opacity driven by Animated.View
+  },
   modalSheet: {
-    backgroundColor: Colors.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '75%',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.sm,
+    backgroundColor: '#F8FCFC',
+    borderTopLeftRadius: 48,
+    borderTopRightRadius: 48,
+    maxHeight: '68%',
+    paddingTop: 10,
+    paddingHorizontal: 18,
+    paddingBottom: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  modalHandleWrap: {
+    alignItems: 'center', paddingVertical: 12,
   },
   modalHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.border,
-    alignSelf: 'center',
-    marginBottom: Spacing.md,
+    width: 86, height: 5, borderRadius: 999,
+    backgroundColor: '#B8CECC',
   },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  modalTitle: { fontSize: FontSize.lg, fontWeight: '700', color: Colors.text },
-  modalHint: { fontSize: FontSize.sm, color: Colors.textMuted, marginBottom: Spacing.md },
+  modalHeader: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    justifyContent: 'space-between', marginBottom: 12,
+  },
+  modalTitle: { fontSize: 24, fontWeight: '700', color: '#102A2A' },
+  modalHint: { fontSize: 12, fontWeight: '500', color: '#6B7F7D' },
+  modalCloseBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: '#E7F2F1',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  modalList: { gap: 8, paddingBottom: 12 },
   actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.sm + 2,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    gap: Spacing.md,
+    flexDirection: 'row', alignItems: 'center',
+    height: 62, borderRadius: 14,
+    backgroundColor: Colors.white,
+    borderWidth: 1, borderColor: '#DCE9E7',
+    paddingHorizontal: 12, gap: 12,
   },
-  actionRowPinned: { backgroundColor: Colors.inputBg, marginHorizontal: -Spacing.lg, paddingHorizontal: Spacing.lg },
-  actionRowIcon: { width: 36, height: 36, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
-  actionRowLabel: { flex: 1, fontSize: FontSize.md, color: Colors.text, fontWeight: '500' },
+  actionRowIcon: { width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  actionRowLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: '#102A2A' },
+  starWrap: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: '#F1F5F5',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  starWrapActive: { backgroundColor: '#FFF7E8' },
+  modalDoneBtn: {
+    height: 44, borderRadius: 14,
+    backgroundColor: '#0D7377',
+    alignItems: 'center', justifyContent: 'center',
+    marginTop: 4,
+  },
+  modalDoneText: { fontSize: 14, fontWeight: '700', color: '#ECFFFB' },
 });
