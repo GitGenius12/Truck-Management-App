@@ -1,13 +1,21 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Modal, FlatList,
+  View, Text, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, Easing, interpolate, clamp,
+} from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Skeleton } from '@/components/Skeleton';
 import { api } from '@/services/api';
 import { ENDPOINTS } from '@/constants/api';
 import { Colors, Spacing, Radius, FontSize } from '@/constants/theme';
+
+const { height: SCREEN_H } = Dimensions.get('window');
+const SHEET_H = SCREEN_H * 0.65;
 
 interface AppNotification {
   _id: string;
@@ -51,22 +59,31 @@ const cardStyles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: Spacing.sm + 2,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: '#DCE9E7',
     gap: Spacing.md,
   },
   left: { flex: 1 },
-  title: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text },
-  body: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
-  time: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: '600', flexShrink: 0, marginTop: 2 },
+  title: { fontSize: FontSize.md, fontWeight: '700', color: '#102A2A' },
+  body: { fontSize: FontSize.sm, color: '#6B7F7D', marginTop: 2 },
+  time: { fontSize: FontSize.xs, color: '#0D7377', fontWeight: '600', flexShrink: 0, marginTop: 2 },
 });
 
 export default function NotificationBell() {
+  const insets = useSafeAreaInsets();
   const [showNotifs, setShowNotifs] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [notifTotal, setNotifTotal] = useState(0);
   const [notifPage, setNotifPage] = useState(1);
   const [notifTotalPages, setNotifTotalPages] = useState(1);
   const [notifLoading, setNotifLoading] = useState(false);
+
+  const translateY = useSharedValue(SHEET_H);
+  const startY = useSharedValue(0);
+
+  const sheetAnim = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
+  const backdropAnim = useAnimatedStyle(() => ({
+    opacity: interpolate(translateY.value, [0, SHEET_H], [1, 0], 'clamp'),
+  }));
 
   useEffect(() => {
     (async () => {
@@ -90,26 +107,54 @@ export default function NotificationBell() {
       setNotifTotalPages(res.totalPages ?? 1);
       setNotifPage(page);
     } catch {
-      // silently fail
     } finally {
       setNotifLoading(false);
     }
   }, []);
 
-  const closeNotifs = useCallback(async () => {
+  function openSheet() {
+    setShowNotifs(true);
+    translateY.value = withSpring(0, { mass: 0.8, stiffness: 120, damping: 20 });
+    loadNotifications(1);
+  }
+
+  const handleClose = useCallback(() => {
     setShowNotifs(false);
     setNotifTotal(0);
-    try {
-      const res = await api.get<NotifResponse>(`${ENDPOINTS.NOTIFICATIONS}?page=1&limit=1`);
-      await AsyncStorage.setItem('notif_last_seen_total', String(res.total ?? 0));
-    } catch {}
+    api.get<NotifResponse>(`${ENDPOINTS.NOTIFICATIONS}?page=1&limit=1`)
+      .then(res => AsyncStorage.setItem('notif_last_seen_total', String(res.total ?? 0)))
+      .catch(() => {});
   }, []);
+
+  const closeSheet = useCallback(() => {
+    translateY.value = withTiming(SHEET_H, { duration: 380, easing: Easing.bezier(0.32, 0, 0.67, 0) }, (done) => {
+      if (done) runOnJS(handleClose)();
+    });
+  }, [handleClose]);
+
+  const pan = Gesture.Pan()
+    .activeOffsetY(5)
+    .onStart(() => {
+      startY.value = translateY.value;
+    })
+    .onUpdate((e) => {
+      translateY.value = clamp(startY.value + e.translationY, 0, SHEET_H);
+    })
+    .onEnd((e) => {
+      if (translateY.value > SHEET_H * 0.3 || e.velocityY > 500) {
+        translateY.value = withTiming(SHEET_H, { duration: 380, easing: Easing.bezier(0.32, 0, 0.67, 0) }, (done) => {
+          if (done) runOnJS(handleClose)();
+        });
+      } else {
+        translateY.value = withSpring(0, { mass: 0.8, stiffness: 120, damping: 20 });
+      }
+    });
 
   return (
     <>
       <TouchableOpacity
         style={styles.btn}
-        onPress={() => { setShowNotifs(true); loadNotifications(1); }}
+        onPress={openSheet}
       >
         <Ionicons name="notifications-outline" size={24} color={Colors.white} />
         {notifTotal > 0 && (
@@ -119,60 +164,68 @@ export default function NotificationBell() {
         )}
       </TouchableOpacity>
 
-      <Modal visible={showNotifs} animationType="slide" transparent onRequestClose={closeNotifs}>
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={closeNotifs} />
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Notifications</Text>
-            <TouchableOpacity onPress={closeNotifs}>
-              <Ionicons name="close" size={22} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-          {notifLoading ? (
-            <>
-              <Skeleton width="70%" height={14} style={{ marginBottom: 12 }} />
-              <Skeleton width="90%" height={12} style={{ marginBottom: 16 }} />
-              <Skeleton width="70%" height={14} style={{ marginBottom: 12 }} />
-              <Skeleton width="90%" height={12} style={{ marginBottom: 16 }} />
-              <Skeleton width="70%" height={14} style={{ marginBottom: 12 }} />
-              <Skeleton width="90%" height={12} />
-            </>
-          ) : notifications.length === 0 ? (
-            <View style={styles.empty}>
-              <Ionicons name="notifications-off-outline" size={40} color={Colors.textMuted} />
-              <Text style={styles.emptyText}>No notifications yet</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={notifications}
-              keyExtractor={item => item._id}
-              contentContainerStyle={{ paddingBottom: 16 }}
-              renderItem={({ item }) => <NotifCard notif={item} />}
-              ListFooterComponent={
-                notifTotalPages > 1 ? (
-                  <View style={styles.pager}>
-                    <TouchableOpacity
-                      onPress={() => loadNotifications(notifPage - 1)}
-                      disabled={notifPage === 1}
-                      style={[styles.pagerBtn, notifPage === 1 && styles.pagerBtnDisabled]}
-                    >
-                      <Ionicons name="chevron-back" size={18} color={notifPage === 1 ? Colors.textMuted : Colors.primary} />
-                    </TouchableOpacity>
-                    <Text style={styles.pagerText}>{notifPage} / {notifTotalPages}</Text>
-                    <TouchableOpacity
-                      onPress={() => loadNotifications(notifPage + 1)}
-                      disabled={notifPage === notifTotalPages}
-                      style={[styles.pagerBtn, notifPage === notifTotalPages && styles.pagerBtnDisabled]}
-                    >
-                      <Ionicons name="chevron-forward" size={18} color={notifPage === notifTotalPages ? Colors.textMuted : Colors.primary} />
-                    </TouchableOpacity>
-                  </View>
-                ) : null
-              }
-            />
-          )}
-        </View>
+      <Modal visible={showNotifs} animationType="none" transparent onRequestClose={closeSheet}>
+        <Animated.View style={[styles.overlay, backdropAnim]}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={closeSheet} />
+          <GestureDetector gesture={pan}>
+            <Animated.View
+              style={[styles.sheet, { height: SHEET_H, paddingBottom: insets.bottom + 16 }, sheetAnim]}
+            >
+              <View style={styles.handleWrap}>
+                <View style={styles.handle} />
+              </View>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Notifications</Text>
+                <TouchableOpacity onPress={closeSheet}>
+                  <Ionicons name="close" size={22} color="#102A2A" />
+                </TouchableOpacity>
+              </View>
+              {notifLoading ? (
+                <>
+                  <Skeleton width="70%" height={14} style={{ marginBottom: 12 }} />
+                  <Skeleton width="90%" height={12} style={{ marginBottom: 16 }} />
+                  <Skeleton width="70%" height={14} style={{ marginBottom: 12 }} />
+                  <Skeleton width="90%" height={12} style={{ marginBottom: 16 }} />
+                  <Skeleton width="70%" height={14} style={{ marginBottom: 12 }} />
+                  <Skeleton width="90%" height={12} />
+                </>
+              ) : notifications.length === 0 ? (
+                <View style={styles.empty}>
+                  <Ionicons name="notifications-off-outline" size={40} color="#B8CECC" />
+                  <Text style={styles.emptyText}>No notifications yet</Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={notifications}
+                  keyExtractor={item => item._id}
+                  contentContainerStyle={{ paddingBottom: 16 }}
+                  renderItem={({ item }) => <NotifCard notif={item} />}
+                  ListFooterComponent={
+                    notifTotalPages > 1 ? (
+                      <View style={styles.pager}>
+                        <TouchableOpacity
+                          onPress={() => loadNotifications(notifPage - 1)}
+                          disabled={notifPage === 1}
+                          style={[styles.pagerBtn, notifPage === 1 && styles.pagerBtnDisabled]}
+                        >
+                          <Ionicons name="chevron-back" size={18} color={notifPage === 1 ? '#B8CECC' : '#0D7377'} />
+                        </TouchableOpacity>
+                        <Text style={styles.pagerText}>{notifPage} / {notifTotalPages}</Text>
+                        <TouchableOpacity
+                          onPress={() => loadNotifications(notifPage + 1)}
+                          disabled={notifPage === notifTotalPages}
+                          style={[styles.pagerBtn, notifPage === notifTotalPages && styles.pagerBtnDisabled]}
+                        >
+                          <Ionicons name="chevron-forward" size={18} color={notifPage === notifTotalPages ? '#B8CECC' : '#0D7377'} />
+                        </TouchableOpacity>
+                      </View>
+                    ) : null
+                  }
+                />
+              )}
+            </Animated.View>
+          </GestureDetector>
+        </Animated.View>
       </Modal>
     </>
   );
@@ -200,27 +253,47 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
   },
   badgeText: { fontSize: 10, fontWeight: '700', color: Colors.white },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  overlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
   sheet: {
-    backgroundColor: Colors.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '75%',
+    backgroundColor: '#F8FCFC',
+    borderTopLeftRadius: 48,
+    borderTopRightRadius: 48,
+    overflow: 'hidden',
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  handleWrap: {
+    alignItems: 'center',
+    paddingVertical: 12,
   },
   handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.border,
-    alignSelf: 'center',
-    marginBottom: Spacing.md,
+    width: 86,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#8FBFBC',
+    shadowColor: '#0D7377',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 6,
+    elevation: 4,
   },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  modalTitle: { fontSize: FontSize.lg, fontWeight: '700', color: Colors.text },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  modalTitle: { fontSize: FontSize.lg, fontWeight: '700', color: '#102A2A' },
   empty: { alignItems: 'center', paddingVertical: Spacing.xl, gap: Spacing.sm },
-  emptyText: { fontSize: FontSize.md, color: Colors.textMuted },
+  emptyText: { fontSize: FontSize.md, color: '#6B7F7D' },
   pager: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -232,10 +305,10 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.inputBg,
+    backgroundColor: '#F0F7F6',
     alignItems: 'center',
     justifyContent: 'center',
   },
   pagerBtnDisabled: { opacity: 0.4 },
-  pagerText: { fontSize: FontSize.md, fontWeight: '600', color: Colors.text },
+  pagerText: { fontSize: FontSize.md, fontWeight: '600', color: '#102A2A' },
 });
